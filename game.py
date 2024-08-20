@@ -183,7 +183,7 @@ class GameScreen:
                                'balloon_tail': self.texture_balloon_tail}
 
     def init_tja(self):
-        self.tja = tja_parser('Songs\\Dokidoki Mune-kyun Omatsuri Time')
+        self.tja = tja_parser('Songs\\Ai to Jouzai no Mori')
         self.tja.get_metadata()
         self.tja.distance = self.width - self.judge_x
 
@@ -284,13 +284,15 @@ class Player:
             self.current_bars.append(self.draw_bar_list.popleft())
 
         #Add note to current_notes list if it is ready to be shown on screen
-        if game_screen.current_ms + 1000 >= self.play_note_list[0]['load_ms']:
+        if game_screen.current_ms + 1000 >= self.play_note_list[0]['load_ms'] and len(self.play_note_list) > 0:
             self.current_notes.append(self.play_note_list.popleft())
             if self.play_note_list[0]['note'] == '8':
                 self.current_notes.append(self.play_note_list.popleft())
-        if game_screen.current_ms + 1000 >= self.draw_note_list[0]['load_ms']:
-            self.current_notes_draw.append(self.draw_note_list.popleft())
-            if self.draw_note_list[0]['note'] == '8':
+        if game_screen.current_ms + 1000 >= self.draw_note_list[0]['load_ms'] and len(self.draw_note_list) > 0:
+            if self.draw_note_list[0]['note'] == '7':
+                while self.draw_note_list[0]['note'] != '8':
+                    self.current_notes_draw.append(self.draw_note_list.popleft())
+            else:
                 self.current_notes_draw.append(self.draw_note_list.popleft())
 
         #if a note was not hit within the window, remove it
