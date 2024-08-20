@@ -1,6 +1,5 @@
 import time
 import os
-import simpleaudio as sa
 import pyray as ray
 
 from collections import deque

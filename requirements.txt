@@ -1,0 +1,2 @@
+raylib==5.0.0.3
+raylib_dynamic==5.0.0.3
