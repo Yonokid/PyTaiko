@@ -40,7 +40,7 @@ jobs:
           nuitka-version: main
           script-name: main.py
           standalone: true
-          enable-plugins: pyray
+          follow-imports: true
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
