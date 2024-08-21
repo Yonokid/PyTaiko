@@ -25,4 +25,8 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Build executables or extension modules from Python projects
-      uses: Nuitka/Nuitka-Action@v1.1
+      # Build python script into a stand-alone exe
+    - uses: Nuitka/Nuitka-Action@main
+      with:
+        nuitka-version: main
+        script-name: main.py
