@@ -2,29 +2,27 @@ name: PyTaiko
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 permissions:
   contents: read
 
 jobs:
-
   build:
     # Windows is currently the only platform this action supports
     runs-on: windows-latest
 
     steps:
-
       # Check-out repository
       - uses: actions/checkout@v4
 
       # Setup Python
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Version range or exact version of a Python version to use, using SemVer's version range syntax
-          architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+          python-version: "3.11" # Version range or exact version of a Python version to use, using SemVer's version range syntax
+          architecture: "x64" # optional x64 or x86. Defaults to x64 if not specified
 
       # Build python script into a stand-alone exe
       - uses: Nuitka/Nuitka-Action@main
@@ -38,4 +36,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: exe
-          path: build/PyTaiko.exe
+          path: build/main.exe
