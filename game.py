@@ -52,16 +52,10 @@ class GameScreen:
         self.texture_dai_drumroll_tail = [ray.load_texture(folder_path + 'onp_renda_dai_img00001.png'),
                                           ray.load_texture(folder_path + 'onp_renda_dai_img00001.png')]
         self.texture_drumroll_count = ray.load_texture(folder_path + 'renda_num_img00000.png')
-        self.texture_drumroll_number = [ray.load_texture(folder_path + 'renda_num_img00001.png'),
-                                        ray.load_texture(folder_path + 'renda_num_img00002.png'),
-                                        ray.load_texture(folder_path + 'renda_num_img00003.png'),
-                                        ray.load_texture(folder_path + 'renda_num_img00004.png'),
-                                        ray.load_texture(folder_path + 'renda_num_img00005.png'),
-                                        ray.load_texture(folder_path + 'renda_num_img00006.png'),
-                                        ray.load_texture(folder_path + 'renda_num_img00007.png'),
-                                        ray.load_texture(folder_path + 'renda_num_img00008.png'),
-                                        ray.load_texture(folder_path + 'renda_num_img00009.png'),
-                                        ray.load_texture(folder_path + 'renda_num_img00010.png')]
+        self.texture_drumroll_number = []
+        for i in range(1, 11):
+            filename = f'renda_num_img{str(i).zfill(5)}.png'
+            self.texture_drumroll_number.append(ray.load_texture(folder_path + filename))
 
 
         self.texture_barline = ray.load_texture(folder_path + 'lane_syousetsu_img00000.png')
@@ -121,27 +115,17 @@ class GameScreen:
 
         self.texture_combo_text = [ray.load_texture(folder_path + 'lane_obi_img00035.png'),
                                    ray.load_texture(folder_path + 'lane_obi_img00046.png')]
-        self.texture_combo_numbers = [ray.load_texture(folder_path + 'lane_obi_img00036.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00037.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00038.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00039.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00040.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00041.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00042.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00043.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00044.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00045.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00047.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00049.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00050.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00051.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00052.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00053.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00054.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00055.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00056.png'),
-                                      ray.load_texture(folder_path + 'lane_obi_img00057.png')]
+        self.texture_combo_numbers = []
+        for i in range(36, 58):
+            if i not in [46, 48]:
+                filename = f'lane_obi_img{str(i).zfill(5)}.png'
+                self.texture_combo_numbers.append(ray.load_texture(folder_path + filename))
         self.texture_combo_glimmer = ray.load_texture(folder_path + 'lane_obi_img00048.png')
+
+        self.texture_score_numbers = []
+        for i in range(4, 14):
+            filename = f'lane_obi_img{str(i).zfill(5)}.png'
+            self.texture_score_numbers.append(ray.load_texture(folder_path + filename))
 
         folder_path = 'Graphics\\lumendata\\enso_system\\base1p\\'
         self.texture_balloon_speech_bubble_p1 = ray.load_texture(folder_path + 'action_fusen_1p_img00000.png')
@@ -246,6 +230,7 @@ class Player:
         self.drumroll_counter = []
         self.balloon_list = []
         self.combo_list = []
+        self.score_list = []
 
     def calculate_base_score(self):
         total_notes = 0
@@ -370,6 +355,7 @@ class Player:
             note_type = game_screen.note_type_dict[str(int(drum_type)+self.drumroll_big)]
             self.draw_arc_list.append(NoteArc(note_type, game_screen.current_ms, self.player_number))
             self.curr_drumroll_count += 1
+            self.score += 100
             color = 255 - (self.curr_drumroll_count*10)
             if color < 0:
                 self.current_notes_draw[0]['color'] = 0
@@ -382,6 +368,7 @@ class Player:
             if len(self.balloon_list) < 1:
                 self.balloon_list.append(BalloonAnimation(game_screen.current_ms, current_note['balloon']))
             self.curr_balloon_count += 1
+            self.score += 100
             self.current_notes_draw[0]['popped'] = False
             if self.curr_balloon_count == current_note['balloon']:
                 self.is_balloon = False
@@ -454,6 +441,12 @@ class Player:
         elif len(self.combo_list) == 1:
             self.combo_list[0].update(game_screen, game_screen.current_ms, self.combo)
 
+    def score_manager(self, game_screen):
+        if len(self.score_list) == 0:
+            self.score_list.append(ScoreCounter(self.score, game_screen.current_ms))
+        elif len(self.score_list) == 1:
+            self.score_list[0].update(game_screen.current_ms, self.score)
+
     def key_manager(self, game_screen):
         if ray.is_key_pressed(ray.KeyboardKey.KEY_F):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'DON'))
@@ -486,6 +479,7 @@ class Player:
         self.animation_manager(game_screen, self.draw_effect_list)
         self.animation_manager(game_screen, self.draw_drum_hit_list)
         self.animation_manager(game_screen, self.draw_arc_list)
+        self.score_manager(game_screen)
         self.key_manager(game_screen)
 
     def draw_animation_list(self, game_screen, animation_list):
@@ -594,6 +588,7 @@ class Player:
         self.draw_animation_list(game_screen, self.drumroll_counter)
         self.draw_animation_list(game_screen, self.draw_arc_list)
         self.draw_animation_list(game_screen, self.balloon_list)
+        self.draw_animation_list(game_screen, self.score_list)
 
 class Judgement:
     def __init__(self, current_ms, type, big):
@@ -960,3 +955,45 @@ class Combo:
             for j, (x, y) in enumerate(glimmer_positions):
                 for i in range(3):
                     ray.draw_texture(game_screen.texture_combo_glimmer, x + (i * 30), y + self.glimmer_dict[j], self.color[j])
+
+class ScoreCounter:
+    def __init__(self, score, current_ms):
+        self.score = score
+        self.create_ms = current_ms
+        self.counter_stretch = 0
+        self.start_stretch = None
+        self.is_stretching = False
+
+    def update_count(self, current_ms, score):
+        if self.score != score:
+            self.score = score
+            self.start_stretch = current_ms
+            self.is_stretching = True
+
+    def update_stretch(self, current_ms):
+        if not self.is_stretching:
+            return
+        elapsed_time = current_ms - self.start_stretch
+        if elapsed_time <= 50:
+            self.counter_stretch = 2 + (5 * (elapsed_time // 25))
+        elif elapsed_time <= 50 + 100:
+            frame_time = (elapsed_time - 50) // 16.57
+            self.counter_stretch = 2 + (10 - (2 * (frame_time + 1)))
+        else:
+            self.counter_stretch = 0
+            self.is_stretching = False
+
+    def update(self, current_ms, score):
+        self.update_count(current_ms, score)
+        self.update_stretch(current_ms)
+
+    def draw(self, game_screen):
+        counter = str(self.score)
+        x, y = 150, 185
+        margin = 20
+        total_width = len(counter) * margin
+        start_x = x - total_width
+        source_rect = ray.Rectangle(0, 0, game_screen.texture_score_numbers[0].width, game_screen.texture_score_numbers[0].height)
+        for i in range(len(counter)):
+            dest_rect = ray.Rectangle(start_x + (i * margin), y - self.counter_stretch, game_screen.texture_score_numbers[0].width, game_screen.texture_score_numbers[0].height + self.counter_stretch)
+            ray.draw_texture_pro(game_screen.texture_score_numbers[int(counter[i])], source_rect, dest_rect, ray.Vector2(0,0), 0, ray.WHITE)
