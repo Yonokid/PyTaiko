@@ -11,8 +11,9 @@ class GameScreen:
         self.width = width
         self.height = height
         self.judge_x = 414
+        self.current_ms = 0
 
-        # Textures
+    def load_textures(self):
         folder_path = 'Graphics\\lumendata\\enso_system\\common\\'
         self.texture_judge_circle = ray.load_texture(folder_path + 'lane_hit_img00017.png')
 
@@ -163,11 +164,14 @@ class GameScreen:
                                        ray.load_texture(folder_path + 'action_fusen_1p_img00009.png'),
                                        ray.load_texture(folder_path + 'action_fusen_1p_img00010.png')]
 
-        self.current_ms = 0
-
+    def load_sounds(self):
         self.sound_don = ray.load_sound('Sounds\\inst_00_don.wav')
         self.sound_kat = ray.load_sound('Sounds\\inst_00_katsu.wav')
         self.sound_balloon_pop = ray.load_sound('Sounds\\balloon_pop.wav')
+
+    def init_tja(self, song, difficulty):
+        self.load_textures()
+        self.load_sounds()
 
         self.note_type_dict = {'1': self.texture_don,
                                '2': self.texture_kat,
@@ -181,13 +185,11 @@ class GameScreen:
                                'dai_drumroll_body': self.texture_dai_drumroll_body,
                                'dai_drumroll_tail': self.texture_dai_drumroll_tail,
                                'balloon_tail': self.texture_balloon_tail}
-
-    def init_tja(self):
-        self.tja = tja_parser('Songs\\Ai to Jouzai no Mori')
+        self.tja = tja_parser(f'Songs\\{song}')
         self.tja.get_metadata()
         self.tja.distance = self.width - self.judge_x
 
-        self.player_1 = Player(self, 1, 3)
+        self.player_1 = Player(self, 1, int(difficulty))
         self.song_music = ray.load_music_stream(self.tja.wave)
         ray.play_music_stream(self.song_music)
         self.start_ms = get_current_ms() - self.tja.offset*1000
@@ -280,18 +282,19 @@ class Player:
 
     def note_manager(self, game_screen):
         #Add bar to current_bars list if it is ready to be shown on screen
-        if game_screen.current_ms > self.draw_bar_list[0]['load_ms'] and len(self.draw_bar_list) > 0:
+        if len(self.draw_bar_list) > 0 and game_screen.current_ms > self.draw_bar_list[0]['load_ms']:
             self.current_bars.append(self.draw_bar_list.popleft())
 
         #Add note to current_notes list if it is ready to be shown on screen
-        if game_screen.current_ms + 1000 >= self.play_note_list[0]['load_ms'] and len(self.play_note_list) > 0:
+        if len(self.play_note_list) > 0 and game_screen.current_ms + 1000 >= self.play_note_list[0]['load_ms']:
             self.current_notes.append(self.play_note_list.popleft())
-            if self.play_note_list[0]['note'] == '8':
+            if len(self.play_note_list) > 0 and self.play_note_list[0]['note'] == '8':
                 self.current_notes.append(self.play_note_list.popleft())
-        if game_screen.current_ms + 1000 >= self.draw_note_list[0]['load_ms'] and len(self.draw_note_list) > 0:
-            if self.draw_note_list[0]['note'] == '7':
+        if len(self.draw_note_list) > 0 and game_screen.current_ms + 1000 >= self.draw_note_list[0]['load_ms']:
+            if self.draw_note_list[0]['note'] in {'5','6','7','9'}:
                 while self.draw_note_list[0]['note'] != '8':
                     self.current_notes_draw.append(self.draw_note_list.popleft())
+                self.current_notes_draw.append(self.draw_note_list.popleft())
             else:
                 self.current_notes_draw.append(self.draw_note_list.popleft())
 
@@ -492,6 +495,10 @@ class Player:
     def draw_drumroll(self, game_screen, big, position, index, color):
         drumroll_start_position = position
         tail = self.current_notes_draw[index+1]
+        i = 0
+        while tail['note'] != '8':
+            tail = self.current_notes_draw[index+i]
+            i += 1
         if big:
             drumroll_body = 'dai_drumroll_body'
             drumroll_tail = 'dai_drumroll_tail'
@@ -512,6 +519,10 @@ class Player:
 
     def draw_balloon(self, game_screen, note, position, index):
         end_time = self.current_notes_draw[index+1]
+        i = 0
+        while end_time['note'] != '8':
+            end_time = self.current_notes_draw[index+i]
+            i += 1
         end_time_position = self.get_position(game_screen, end_time['load_ms'], end_time['ppf'])
         if game_screen.current_ms >= end_time['ms']:
             position = end_time_position

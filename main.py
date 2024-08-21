@@ -1,4 +1,5 @@
 import pyray as ray
+import sys
 
 from entry import *
 from game import *
@@ -47,7 +48,7 @@ def main():
 
         screen = screen_mapping[current_screen]
         if screen == game_screen and not start_song:
-            game_screen.init_tja()
+            game_screen.init_tja(sys.argv[1], sys.argv[2])
             start_song = True
         next_screen = screen.update()
         screen.draw()

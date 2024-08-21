@@ -1,7 +1,6 @@
 import time
 import os
 import pyray as ray
-import copy
 
 from collections import deque
 
@@ -230,6 +229,6 @@ class tja_parser:
         # Sorting by load_ms is necessary for drawing, as some notes appear on the
         # screen slower regardless of when they reach the judge circle
         # Bars can be sorted like this because they don't need hit detection
-        draw_note_list = deque(sorted(copy.deepcopy(play_note_list), key=lambda d: d['load_ms']))
+        draw_note_list = deque(sorted(play_note_list, key=lambda d: d['load_ms']))
         bar_list = deque(sorted(bar_list, key=lambda d: d['load_ms']))
         return play_note_list, draw_note_list, bar_list
