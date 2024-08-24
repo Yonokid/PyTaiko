@@ -592,84 +592,71 @@ class Player:
 
 class Judgement:
     def __init__(self, current_ms, type, big):
-        self.y_pos = 144
-        self.create_ms = current_ms
-        self.total_distance = 15
-        self.current_y_pos = self.y_pos
-        self.total_duration = 332
         self.type = type
-        self.fade = 1
-        self.hit_fade = 0.5
-        self.color = ray.fade(ray.WHITE, self.fade)
-        self.hit_color = ray.fade(ray.WHITE, self.hit_fade)
         self.big = big
-        self.index = 0
         self.is_finished = False
 
+        self.fade_animation_1 = Animation(current_ms, 132, 'fade')
+        self.fade_animation_1.params['initial_opacity'] = 0.5
+        self.fade_animation_1.params['delay'] = 100
+
+        self.fade_animation_2 = Animation(current_ms, 316 - 233.3, 'fade')
+        self.fade_animation_2.params['delay'] = 233.3
+
+        self.move_animation = Animation(current_ms, 83, 'move')
+        self.move_animation.params['total_distance'] = 15
+        self.move_animation.params['start_position'] = 144
+
+        self.texture_animation = Animation(current_ms, 100, 'texture_change')
+        self.texture_animation.params['textures'] = [(33, 50, 1), (50, 83, 2), (83, 100, 3), (100, float('inf'), 4)]
+
     def update(self, current_ms):
-        elapsed_time = current_ms - self.create_ms
+        self.fade_animation_1.update(current_ms)
+        self.fade_animation_2.update(current_ms)
+        self.move_animation.update(current_ms)
+        self.texture_animation.update(current_ms)
 
-        if elapsed_time <= self.total_duration:
-            if elapsed_time <= 83:
-                progress = elapsed_time / 83
-                self.current_y_pos = self.y_pos + (self.total_distance * progress)
-            else:
-                self.current_y_pos = self.y_pos + self.total_distance
-
-            if 33 < elapsed_time <= 50:
-                self.index = 1
-            elif 50 < elapsed_time <= 83:
-                self.index = 2
-            elif 83 < elapsed_time <= 100:
-                self.index = 3
-            elif elapsed_time > 100:
-                self.index = 4
-            elif 83 < elapsed_time <= 166:
-                hit_fade_progress = (elapsed_time - 83) / (166 - 83)
-                self.hit_fade = 1 - hit_fade_progress
-                self.hit_color = ray.fade(ray.WHITE, self.fade)
-            if elapsed_time > 233.3:
-                fade_progress = (elapsed_time - 233.3) / (333 - 233.3)
-                self.fade = 1 - fade_progress
-                self.color = ray.fade(ray.WHITE, self.fade)
-        if elapsed_time > self.total_duration:
+        if self.fade_animation_2.is_finished:
             self.is_finished = True
 
     def draw(self, game_screen):
+        y = self.move_animation.attribute
+        index = self.texture_animation.attribute
+        hit_color = ray.fade(ray.WHITE, self.fade_animation_1.attribute)
+        color = ray.fade(ray.WHITE, self.fade_animation_2.attribute)
         if self.type == 'GOOD':
             if self.big:
-                ray.draw_texture(game_screen.texture_good_hit_center_big, 342, 184, self.color)
-                ray.draw_texture(game_screen.texture_good_hit_effect_big[self.index], 304, 143, self.hit_color)
+                ray.draw_texture(game_screen.texture_good_hit_center_big, 342, 184, color)
+                ray.draw_texture(game_screen.texture_good_hit_effect_big[index], 304, 143, hit_color)
             else:
-                ray.draw_texture(game_screen.texture_good_hit_center, 342, 184, self.color)
-                ray.draw_texture(game_screen.texture_good_hit_effect[self.index], 304, 143, self.hit_color)
-            ray.draw_texture(game_screen.texture_good, 370, int(self.current_y_pos), self.color)
+                ray.draw_texture(game_screen.texture_good_hit_center, 342, 184, color)
+                ray.draw_texture(game_screen.texture_good_hit_effect[index], 304, 143, hit_color)
+            ray.draw_texture(game_screen.texture_good, 370, int(y), color)
         elif self.type == 'OK':
             if self.big:
-                ray.draw_texture(game_screen.texture_ok_hit_center_big, 342, 184, self.color)
-                ray.draw_texture(game_screen.texture_ok_hit_effect_big[self.index], 304, 143, self.hit_color)
+                ray.draw_texture(game_screen.texture_ok_hit_center_big, 342, 184, color)
+                ray.draw_texture(game_screen.texture_ok_hit_effect_big[index], 304, 143, hit_color)
             else:
-                ray.draw_texture(game_screen.texture_ok_hit_center, 342, 184, self.color)
-                ray.draw_texture(game_screen.texture_ok_hit_effect[self.index], 304, 143, self.hit_color)
-            ray.draw_texture(game_screen.texture_ok, 370, int(self.current_y_pos), self.color)
+                ray.draw_texture(game_screen.texture_ok_hit_center, 342, 184, color)
+                ray.draw_texture(game_screen.texture_ok_hit_effect[index], 304, 143, hit_color)
+            ray.draw_texture(game_screen.texture_ok, 370, int(y), color)
         elif self.type == 'BAD':
-            ray.draw_texture(game_screen.texture_bad, 370, int(self.current_y_pos), self.color)
+            ray.draw_texture(game_screen.texture_bad, 370, int(y), color)
 
 class LaneHitEffect:
     def __init__(self, current_ms, type):
         self.type = type
-        self.fade = 0.5
-        self.color = ray.fade(ray.WHITE, self.fade)
-        self.create_ms = current_ms
-        self.total_duration = 150
+        self.color = ray.fade(ray.WHITE, 0.5)
+        self.animation = Animation(current_ms, 150, 'fade')
+        self.animation.params['delay'] = 83
+        self.animation.params['initial_opacity'] = 0.5
         self.is_finished = False
+
     def update(self, current_ms):
-        elapsed_time = current_ms - self.create_ms
-        if elapsed_time >= 83:
-            fade_progress = (elapsed_time - 83) / (self.total_duration - 83)
-            self.fade = 0.5 - fade_progress
-            self.color = ray.fade(ray.WHITE, self.fade)
-        if elapsed_time > self.total_duration:
+        self.animation.update(current_ms)
+        fade_opacity = self.animation.attribute
+        self.color = ray.fade(ray.WHITE, fade_opacity)
+        if self.animation.is_finished:
             self.is_finished = True
 
     def draw(self, game_screen):
@@ -684,19 +671,16 @@ class DrumHitEffect:
     def __init__(self, current_ms, type, side):
         self.type = type
         self.side = side
-        self.fade = 1
-        self.color = ray.fade(ray.WHITE, self.fade)
-        self.create_ms = current_ms
-        self.total_duration = 150
+        self.color = ray.fade(ray.WHITE, 1)
         self.is_finished = False
+        self.animation = Animation(current_ms, 100, 'fade')
+        self.animation.params['delay'] = 67
 
     def update(self, current_ms):
-        elapsed_time = current_ms - self.create_ms
-        if elapsed_time >= 83:
-            fade_progress = (elapsed_time - 83) / (self.total_duration - 83)
-            self.fade = 0.5 - fade_progress
-            self.color = ray.fade(ray.WHITE, self.fade)
-        if elapsed_time > self.total_duration:
+        self.animation.update(current_ms)
+        fade_opacity = self.animation.attribute
+        self.color = ray.fade(ray.WHITE, fade_opacity)
+        if self.animation.is_finished:
             self.is_finished = True
 
     def draw(self, game_screen):
@@ -718,16 +702,13 @@ class NoteArc:
         self.arc_points = 25
         self.create_ms = current_ms
         self.player_number = player_number
-        self.x_i = 0
-        self.y_i = 0
+        self.x_i = 414 - 64
+        self.y_i = 168
         self.is_finished = False
 
-    def update(self, game_screen):
+    def update(self, current_ms):
         if self.x_i >= 1150:
             self.is_finished = True
-    def draw(self, game_screen):
-        if self.note_type == None:
-            return
         radius = 414
         #Start at 180 degrees, end at 0
         theta_start = 3.14
@@ -739,7 +720,7 @@ class NoteArc:
             theta_end = 0
             center_x, center_y = 785, 468
 
-        ms_since_call = (game_screen.current_ms - self.create_ms) / 16.67
+        ms_since_call = (current_ms - self.create_ms) / 16.67
         if ms_since_call < 0:
             ms_since_call = 0
         if ms_since_call > self.arc_points:
@@ -749,6 +730,9 @@ class NoteArc:
         self.x_i = center_x + radius * math.cos(theta_i)
         self.y_i = center_y + radius * 0.5 * math.sin(theta_i)
 
+    def draw(self, game_screen):
+        if self.note_type == None:
+            return
         eighth_in_ms = (60000 * 4 / game_screen.tja.bpm) / 8
         current_eighth = int(game_screen.current_ms // eighth_in_ms)
         ray.draw_texture(self.note_type[current_eighth % 2], int(self.x_i), int(self.y_i), ray.WHITE)
@@ -759,11 +743,11 @@ class DrumrollCounter:
         self.is_finished = False
         self.total_duration = 1349
         self.drumroll_count = 0
-        self.fade = 1
-        self.color = ray.fade(ray.WHITE, self.fade)
         self.counter_stretch = 0
         self.start_stretch = None
         self.is_stretching = False
+        self.fade_animation = Animation(current_ms, 166, 'fade')
+        self.fade_animation.params['delay'] = self.total_duration - 166
 
     def update_count(self, current_ms, count, elapsed_time):
         self.total_duration = elapsed_time + 1349
@@ -787,27 +771,24 @@ class DrumrollCounter:
 
     def update(self, game_screen, current_ms, drumroll_count):
         self.update_stretch(current_ms)
+        self.fade_animation.update(current_ms)
 
         elapsed_time = current_ms - self.create_ms
         if drumroll_count != 0:
             self.update_count(current_ms, drumroll_count, elapsed_time)
-        fade_start_time = self.total_duration - 166
-        if elapsed_time >= fade_start_time:
-            fade_progress = (elapsed_time - fade_start_time) / 166
-            self.fade = 1 - fade_progress
-            self.color = ray.fade(ray.WHITE, self.fade)
-        if elapsed_time > self.total_duration:
+        if self.fade_animation.is_finished:
             self.is_finished = True
 
     def draw(self, game_screen):
-        ray.draw_texture(game_screen.texture_drumroll_count, 200, 0, self.color)
+        color = ray.fade(ray.WHITE, self.fade_animation.attribute)
+        ray.draw_texture(game_screen.texture_drumroll_count, 200, 0, color)
         counter = str(self.drumroll_count)
         total_width = len(counter) * 52
         start_x = 344 - (total_width // 2)
         source_rect = ray.Rectangle(0, 0, game_screen.texture_drumroll_number[0].width, game_screen.texture_drumroll_number[0].height)
         for i in range(len(counter)):
             dest_rect = ray.Rectangle(start_x + (i * 52), 50 - self.counter_stretch, game_screen.texture_drumroll_number[0].width, game_screen.texture_drumroll_number[0].height + self.counter_stretch)
-            ray.draw_texture_pro(game_screen.texture_balloon_number[int(counter[i])], source_rect, dest_rect, ray.Vector2(0,0), 0, self.color)
+            ray.draw_texture_pro(game_screen.texture_balloon_number[int(counter[i])], source_rect, dest_rect, ray.Vector2(0,0), 0, color)
 
 class BalloonAnimation:
     def __init__(self, current_ms, balloon_total):
@@ -997,3 +978,7 @@ class ScoreCounter:
         for i in range(len(counter)):
             dest_rect = ray.Rectangle(start_x + (i * margin), y - self.counter_stretch, game_screen.texture_score_numbers[0].width, game_screen.texture_score_numbers[0].height + self.counter_stretch)
             ray.draw_texture_pro(game_screen.texture_score_numbers[int(counter[i])], source_rect, dest_rect, ray.Vector2(0,0), 0, ray.WHITE)
+
+class ScoreCounterAnimation:
+    def __init__(self, current_ms):
+        pass

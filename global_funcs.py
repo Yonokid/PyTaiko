@@ -232,3 +232,86 @@ class tja_parser:
         draw_note_list = deque(sorted(play_note_list, key=lambda d: d['load_ms']))
         bar_list = deque(sorted(bar_list, key=lambda d: d['load_ms']))
         return play_note_list, draw_note_list, bar_list
+class Animation:
+    def __init__(self, current_ms, duration, type):
+        self.type = type
+        self.start_ms = current_ms
+        self.attribute = 0
+        self.duration = duration
+        self.params = dict()
+        self.is_finished = False
+
+    def update(self, current_ms):
+        if self.type == 'fade':
+            self.fade(current_ms,
+                self.duration,
+                initial_opacity=self.params.get('initial_opacity', 1.0),
+                final_opacity=self.params.get('final_opacity', 0.0),
+                delay=self.params.get('delay', 0.0),
+                ease_in=self.params.get('ease_in', None),
+                ease_out=self.params.get('ease_out', None))
+        elif self.type == 'move':
+            self.move(current_ms,
+                self.duration,
+                self.params['total_distance'],
+                self.params['start_position'])
+        elif self.type == 'texture_change':
+            self.texture_change(current_ms,
+                self.duration,
+                self.params['textures'])
+
+    def fade(self, current_ms, duration, initial_opacity, final_opacity, delay, ease_in, ease_out):
+        def ease_out_progress(progress, ease):
+            if ease == 'quadratic':
+                return progress * (2 - progress)
+            elif ease == 'cubic':
+                return 1 - pow(1 - progress, 3)
+            elif ease == 'exponential':
+                return 1 - pow(2, -10 * progress)
+            else:
+                return progress
+        def ease_in_progress(progress, ease):
+            if ease == 'quadratic':
+                return progress * progress
+            elif ease == 'cubic':
+                return progress * progress * progress
+            elif ease == 'exponential':
+                return pow(2, 10 * (progress - 1))
+            else:
+                return progress
+        elapsed_time = current_ms - self.start_ms
+        if elapsed_time < delay:
+            self.attribute = initial_opacity
+
+        elapsed_time -= delay
+        if elapsed_time >= duration:
+            self.attribute = final_opacity
+            self.is_finished = True
+
+        if ease_in is not None:
+            progress = ease_in_progress(elapsed_time / duration, ease_in)
+        elif ease_out is not None:
+            progress = ease_out_progress(elapsed_time / duration, ease_out)
+        else:
+            progress = elapsed_time / duration
+
+        current_opacity = initial_opacity + (final_opacity - initial_opacity) * progress
+        self.attribute = current_opacity
+
+    def move(self, current_ms, duration, total_distance, start_position):
+        elapsed_time = current_ms - self.start_ms
+        if elapsed_time <= duration:
+            progress = elapsed_time / duration
+            self.attribute = start_position + (total_distance * progress)
+        else:
+            self.attribute = start_position + total_distance
+            self.is_finished = True
+
+    def texture_change(self, current_ms, duration, textures):
+        elapsed_time = current_ms - self.start_ms
+        if elapsed_time <= duration:
+            for start, end, index in textures:
+                if start < elapsed_time <= end:
+                    self.attribute = index
+        else:
+            self.is_finished = True
