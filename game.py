@@ -147,6 +147,10 @@ class GameScreen:
                                        ray.load_texture(folder_path + 'action_fusen_1p_img00008.png'),
                                        ray.load_texture(folder_path + 'action_fusen_1p_img00009.png'),
                                        ray.load_texture(folder_path + 'action_fusen_1p_img00010.png')]
+        self.texture_base_score_numbers = []
+        for i in range(0, 10):
+            filename = f'score_add_1p_img{str(i).zfill(5)}.png'
+            self.texture_base_score_numbers.append(ray.load_texture(folder_path + filename))
 
     def load_sounds(self):
         self.sound_don = ray.load_sound('Sounds\\inst_00_don.wav')
@@ -231,6 +235,7 @@ class Player:
         self.balloon_list = []
         self.combo_list = []
         self.score_list = []
+        self.base_score_list = []
 
     def calculate_base_score(self):
         total_notes = 0
@@ -356,6 +361,7 @@ class Player:
             self.draw_arc_list.append(NoteArc(note_type, game_screen.current_ms, self.player_number))
             self.curr_drumroll_count += 1
             self.score += 100
+            self.base_score_list.append(ScoreCounterAnimation(game_screen.current_ms, 100))
             color = 255 - (self.curr_drumroll_count*10)
             if color < 0:
                 self.current_notes_draw[0]['color'] = 0
@@ -369,6 +375,7 @@ class Player:
                 self.balloon_list.append(BalloonAnimation(game_screen.current_ms, current_note['balloon']))
             self.curr_balloon_count += 1
             self.score += 100
+            self.base_score_list.append(ScoreCounterAnimation(game_screen.current_ms, 100))
             self.current_notes_draw[0]['popped'] = False
             if self.curr_balloon_count == current_note['balloon']:
                 self.is_balloon = False
@@ -399,12 +406,14 @@ class Player:
                 self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'GOOD'))
                 self.good_count += 1
                 self.score += self.base_score
+                self.base_score_list.append(ScoreCounterAnimation(game_screen.current_ms, self.base_score))
                 self.note_correct(game_screen, current_note)
 
             elif (note_ms - self.timing_ok) + self.judge_offset <= game_screen.current_ms <= (note_ms + self.timing_ok) + self.judge_offset:
                 self.draw_judge_list.append(Judgement(game_screen.current_ms, 'OK', big))
                 self.ok_count += 1
                 self.score += 10 * math.floor(self.base_score / 2 / 10)
+                self.base_score_list.append(ScoreCounterAnimation(game_screen.current_ms, 10 * math.floor(self.base_score / 2 / 10)))
                 self.note_correct(game_screen, current_note)
 
             elif (note_ms - self.timing_bad) + self.judge_offset <= game_screen.current_ms <= (note_ms + self.timing_bad) + self.judge_offset:
@@ -448,22 +457,22 @@ class Player:
             self.score_list[0].update(game_screen.current_ms, self.score)
 
     def key_manager(self, game_screen):
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_F):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_F) or ray.is_key_pressed(ray.KeyboardKey.KEY_D):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'DON'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'DON', 'L'))
             ray.play_sound(game_screen.sound_don)
             self.check_note(game_screen, '1')
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_J):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_J) or ray.is_key_pressed(ray.KeyboardKey.KEY_K):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'DON'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'DON', 'R'))
             ray.play_sound(game_screen.sound_don)
             self.check_note(game_screen, '1')
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_E):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_E) or ray.is_key_pressed(ray.KeyboardKey.KEY_R):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'KAT'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'KAT', 'L'))
             ray.play_sound(game_screen.sound_kat)
             self.check_note(game_screen, '2')
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_I):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_I) or ray.is_key_pressed(ray.KeyboardKey.KEY_U):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'KAT'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'KAT', 'R'))
             ray.play_sound(game_screen.sound_kat)
@@ -479,6 +488,7 @@ class Player:
         self.animation_manager(game_screen, self.draw_effect_list)
         self.animation_manager(game_screen, self.draw_drum_hit_list)
         self.animation_manager(game_screen, self.draw_arc_list)
+        self.animation_manager(game_screen, self.base_score_list)
         self.score_manager(game_screen)
         self.key_manager(game_screen)
 
@@ -503,13 +513,9 @@ class Player:
             drumroll_length = 47
         if tail['note'] == '8':
             drumroll_end_position = self.get_position(game_screen, tail['load_ms'], tail['ppf'])
-            distance = ((drumroll_end_position - drumroll_start_position) / drumroll_length) - 1
-            if distance > 0:
-                for i in range(int(distance)):
-                    self.draw_note(game_screen, drumroll_body, (drumroll_start_position + 64) + (i*drumroll_length), color)
-                self.draw_note(game_screen, drumroll_body, drumroll_end_position - drumroll_length, color)
-                self.draw_note(game_screen, drumroll_tail, drumroll_end_position, color)
-                drumroll_end_position = 0
+            length = (drumroll_end_position - drumroll_start_position - 50)
+            self.draw_note(game_screen, drumroll_body, (drumroll_start_position+64), color, drumroll_length=length)
+            self.draw_note(game_screen, drumroll_tail, drumroll_end_position, color, drumroll_length=None)
 
     def draw_balloon(self, game_screen, note, position, index):
         end_time = self.current_notes_draw[index+1]
@@ -524,7 +530,7 @@ class Player:
             position = 349
         self.draw_note(game_screen, '7', position, 255)
 
-    def draw_note(self, game_screen, note, position, color):
+    def draw_note(self, game_screen, note, position, color, drumroll_length=None):
         note_padding = 64
         if note == 'barline':
             y = 184
@@ -545,7 +551,12 @@ class Player:
             else:
                 offset = 0
                 balloon = False
-            ray.draw_texture(game_screen.note_type_dict[note][current_eighth % 2], position-offset, 192, ray.Color(255, draw_color, draw_color, 255))
+            source_rect = ray.Rectangle(0,0,game_screen.note_type_dict[note][0].width,game_screen.note_type_dict[note][0].height)
+            if drumroll_length == None:
+                dest_rect = ray.Rectangle(position-offset, 192, game_screen.note_type_dict[note][0].width,game_screen.note_type_dict[note][0].height)
+            else:
+                dest_rect = ray.Rectangle(position-offset, 192, drumroll_length,game_screen.note_type_dict['1'][0].height)
+            ray.draw_texture_pro(game_screen.note_type_dict[note][current_eighth % 2], source_rect, dest_rect, ray.Vector2(0,0), 0, ray.Color(255, draw_color, draw_color, 255))
             if balloon:
                 ray.draw_texture(game_screen.note_type_dict['balloon_tail'][current_eighth % 2], position-offset+128, 192, ray.Color(255, draw_color, draw_color, 255))
 
@@ -589,6 +600,7 @@ class Player:
         self.draw_animation_list(game_screen, self.draw_arc_list)
         self.draw_animation_list(game_screen, self.balloon_list)
         self.draw_animation_list(game_screen, self.score_list)
+        self.draw_animation_list(game_screen, self.base_score_list)
 
 class Judgement:
     def __init__(self, current_ms, type, big):
@@ -743,34 +755,18 @@ class DrumrollCounter:
         self.is_finished = False
         self.total_duration = 1349
         self.drumroll_count = 0
-        self.counter_stretch = 0
-        self.start_stretch = None
-        self.is_stretching = False
         self.fade_animation = Animation(current_ms, 166, 'fade')
         self.fade_animation.params['delay'] = self.total_duration - 166
+        self.stretch_animation = Animation(current_ms, 0, 'text_stretch')
 
     def update_count(self, current_ms, count, elapsed_time):
         self.total_duration = elapsed_time + 1349
         if self.drumroll_count != count:
             self.drumroll_count = count
-            self.start_stretch = current_ms
-            self.is_stretching = True
-
-    def update_stretch(self, current_ms):
-        if not self.is_stretching:
-            return
-        elapsed_time = current_ms - self.start_stretch
-        if elapsed_time <= 50:
-            self.counter_stretch = 2 + 5 * (elapsed_time // 25)
-        elif elapsed_time <= 50 + 116:
-            frame_time = (elapsed_time - 50) // 16.57
-            self.counter_stretch = 2 + 10 - (2 * (frame_time + 1))
-        else:
-            self.counter_stretch = 0
-            self.is_stretching = False
+            self.stretch_animation = Animation(current_ms, 50, 'text_stretch')
 
     def update(self, game_screen, current_ms, drumroll_count):
-        self.update_stretch(current_ms)
+        self.stretch_animation.update(current_ms)
         self.fade_animation.update(current_ms)
 
         elapsed_time = current_ms - self.create_ms
@@ -787,7 +783,7 @@ class DrumrollCounter:
         start_x = 344 - (total_width // 2)
         source_rect = ray.Rectangle(0, 0, game_screen.texture_drumroll_number[0].width, game_screen.texture_drumroll_number[0].height)
         for i in range(len(counter)):
-            dest_rect = ray.Rectangle(start_x + (i * 52), 50 - self.counter_stretch, game_screen.texture_drumroll_number[0].width, game_screen.texture_drumroll_number[0].height + self.counter_stretch)
+            dest_rect = ray.Rectangle(start_x + (i * 52), 50 - self.stretch_animation.attribute, game_screen.texture_drumroll_number[0].width, game_screen.texture_drumroll_number[0].height + self.stretch_animation.attribute)
             ray.draw_texture_pro(game_screen.texture_balloon_number[int(counter[i])], source_rect, dest_rect, ray.Vector2(0,0), 0, color)
 
 class BalloonAnimation:
@@ -795,50 +791,32 @@ class BalloonAnimation:
         self.create_ms = current_ms
         self.is_finished = False
         self.total_duration = 83.33
-        self.fade = 1
-        self.color = ray.fade(ray.WHITE, self.fade)
+        self.color = ray.fade(ray.WHITE, 1.0)
         self.balloon_count = 0
         self.balloon_total = balloon_total
         self.is_popped = False
-        self.counter_stretch = 0
-        self.start_stretch = None
-        self.is_stretching = False
+        self.fade_animation = Animation(current_ms, 166, 'fade')
+        self.stretch_animation = Animation(current_ms, 0, 'text_stretch')
 
     def update_count(self, current_ms, balloon_count):
         if self.balloon_count != balloon_count:
             self.balloon_count = balloon_count
-            self.start_stretch = current_ms
-            self.is_stretching = True
-
-    def update_stretch(self, current_ms):
-        if not self.is_stretching:
-            return
-        elapsed_time = current_ms - self.start_stretch
-        if elapsed_time <= 50:
-            self.counter_stretch = 2 + 5 * (elapsed_time // 25)
-        elif elapsed_time <= 50 + 116:
-            frame_time = (elapsed_time - 50) // 16.57
-            self.counter_stretch = 2 + 10 - (2 * (frame_time + 1))
-        else:
-            self.counter_stretch = 0
-            self.is_stretching = False
+            self.stretch_animation = Animation(current_ms, 50, 'text_stretch')
 
     def update(self, game_screen, current_ms, balloon_count, is_popped):
         self.update_count(current_ms, balloon_count)
-        self.update_stretch(current_ms)
+        self.stretch_animation.update(current_ms)
         self.is_popped = is_popped
 
         elapsed_time = current_ms - self.create_ms
-        fade_start_time = self.total_duration - 166
         if self.is_popped:
-            if elapsed_time >= fade_start_time:
-                fade_progress = (elapsed_time - fade_start_time) / 166
-                self.fade = 1 - fade_progress
-                self.color = ray.fade(ray.WHITE, self.fade)
-            if elapsed_time > self.total_duration:
-                self.is_finished = True
+            self.fade_animation.update(current_ms)
+            self.color = ray.fade(ray.WHITE, self.fade_animation.attribute)
         else:
             self.total_duration = elapsed_time + 166
+            self.fade_animation.params['delay'] = self.total_duration - 166
+        if self.fade_animation.is_finished:
+            self.is_finished = True
 
     def draw(self, game_screen):
         if self.is_popped:
@@ -855,15 +833,13 @@ class BalloonAnimation:
             start_x = x - (total_width // 2)
             source_rect = ray.Rectangle(0, 0, game_screen.texture_balloon_number[0].width, game_screen.texture_balloon_number[0].height)
             for i in range(len(counter)):
-                dest_rect = ray.Rectangle(start_x + (i * margin), y - self.counter_stretch, game_screen.texture_balloon_number[0].width, game_screen.texture_balloon_number[0].height + self.counter_stretch)
+                dest_rect = ray.Rectangle(start_x + (i * margin), y - self.stretch_animation.attribute, game_screen.texture_balloon_number[0].width, game_screen.texture_balloon_number[0].height + self.stretch_animation.attribute)
                 ray.draw_texture_pro(game_screen.texture_balloon_number[int(counter[i])], source_rect, dest_rect, ray.Vector2(0,0), 0, self.color)
 
 class Combo:
     def __init__(self, combo, current_ms):
         self.combo = combo
-        self.counter_stretch = 0
-        self.start_stretch = None
-        self.is_stretching = False
+        self.stretch_animation = Animation(current_ms, 0, 'text_stretch')
         self.color = [ray.fade(ray.WHITE, 1), ray.fade(ray.WHITE, 1), ray.fade(ray.WHITE, 1)]
         self.glimmer_dict = {0: 0, 1: 0, 2: 0}
         self.total_time = 250
@@ -877,25 +853,11 @@ class Combo:
     def update_count(self, current_ms, combo):
         if self.combo != combo:
             self.combo = combo
-            self.start_stretch = current_ms
-            self.is_stretching = True
-
-    def update_stretch(self, current_ms):
-        if not self.is_stretching:
-            return
-        elapsed_time = current_ms - self.start_stretch
-        if elapsed_time <= 50:
-            self.counter_stretch = 2 + (5 * (elapsed_time // 25))
-        elif elapsed_time <= 50 + 100:
-            frame_time = (elapsed_time - 50) // 16.57
-            self.counter_stretch = 2 + (10 - (2 * (frame_time + 1)))
-        else:
-            self.counter_stretch = 0
-            self.is_stretching = False
+            self.stretch_animation = Animation(current_ms, 50, 'text_stretch')
 
     def update(self, game_screen, current_ms, combo):
         self.update_count(current_ms, combo)
-        self.update_stretch(current_ms)
+        self.stretch_animation.update(current_ms)
 
         for i in range(3):
             elapsed_time = current_ms - self.start_times[i]
@@ -929,7 +891,7 @@ class Combo:
         start_x = x - (total_width // 2)
         source_rect = ray.Rectangle(0, 0, game_screen.texture_combo_numbers[0].width, game_screen.texture_combo_numbers[0].height)
         for i in range(len(counter)):
-            dest_rect = ray.Rectangle(start_x + (i * margin), y - self.counter_stretch, game_screen.texture_combo_numbers[0].width, game_screen.texture_combo_numbers[0].height + self.counter_stretch)
+            dest_rect = ray.Rectangle(start_x + (i * margin), y - self.stretch_animation.attribute, game_screen.texture_combo_numbers[0].width, game_screen.texture_combo_numbers[0].height + self.stretch_animation.attribute)
             ray.draw_texture_pro(game_screen.texture_combo_numbers[int(counter[i]) + (text_color*10)], source_rect, dest_rect, ray.Vector2(0,0), 0, ray.WHITE)
         glimmer_positions = [(225, 210), (200, 230), (250, 230)]
         if self.combo >= 100:
@@ -941,32 +903,16 @@ class ScoreCounter:
     def __init__(self, score, current_ms):
         self.score = score
         self.create_ms = current_ms
-        self.counter_stretch = 0
-        self.start_stretch = None
-        self.is_stretching = False
+        self.stretch_animation = Animation(current_ms, 0, 'text_stretch')
 
     def update_count(self, current_ms, score):
         if self.score != score:
             self.score = score
-            self.start_stretch = current_ms
-            self.is_stretching = True
-
-    def update_stretch(self, current_ms):
-        if not self.is_stretching:
-            return
-        elapsed_time = current_ms - self.start_stretch
-        if elapsed_time <= 50:
-            self.counter_stretch = 2 + (5 * (elapsed_time // 25))
-        elif elapsed_time <= 50 + 100:
-            frame_time = (elapsed_time - 50) // 16.57
-            self.counter_stretch = 2 + (10 - (2 * (frame_time + 1)))
-        else:
-            self.counter_stretch = 0
-            self.is_stretching = False
+            self.stretch_animation = Animation(current_ms, 50, 'text_stretch')
 
     def update(self, current_ms, score):
         self.update_count(current_ms, score)
-        self.update_stretch(current_ms)
+        self.stretch_animation.update(current_ms)
 
     def draw(self, game_screen):
         counter = str(self.score)
@@ -976,9 +922,78 @@ class ScoreCounter:
         start_x = x - total_width
         source_rect = ray.Rectangle(0, 0, game_screen.texture_score_numbers[0].width, game_screen.texture_score_numbers[0].height)
         for i in range(len(counter)):
-            dest_rect = ray.Rectangle(start_x + (i * margin), y - self.counter_stretch, game_screen.texture_score_numbers[0].width, game_screen.texture_score_numbers[0].height + self.counter_stretch)
+            dest_rect = ray.Rectangle(start_x + (i * margin), y - self.stretch_animation.attribute, game_screen.texture_score_numbers[0].width, game_screen.texture_score_numbers[0].height + self.stretch_animation.attribute)
             ray.draw_texture_pro(game_screen.texture_score_numbers[int(counter[i])], source_rect, dest_rect, ray.Vector2(0,0), 0, ray.WHITE)
 
 class ScoreCounterAnimation:
-    def __init__(self, current_ms):
-        pass
+    def __init__(self, current_ms, counter):
+        self.counter = int(counter)
+        self.fade_animation_1 = Animation(current_ms, 50, 'fade')
+        self.fade_animation_1.params['initial_opacity'] = 0.0
+        self.fade_animation_1.params['final_opacity'] = 1.0
+
+        self.move_animation_1 = Animation(current_ms, 80, 'move')
+        self.move_animation_1.params['total_distance'] = -20
+        self.move_animation_1.params['start_position'] = 175
+
+        self.fade_animation_2 = Animation(current_ms, 80, 'fade')
+        self.fade_animation_2.params['delay'] = 366.74
+
+        self.move_animation_2 = Animation(current_ms, 66, 'move')
+        self.move_animation_2.params['total_distance'] = 5
+        self.move_animation_2.params['start_position'] = 145
+        self.move_animation_2.params['delay'] = 80
+
+        self.move_animation_3 = Animation(current_ms, 66, 'move')
+        self.move_animation_3.params['delay'] = 279.36
+        self.move_animation_3.params['total_distance'] = -2
+        self.move_animation_3.params['start_position'] = 146
+
+        self.move_animation_4 = Animation(current_ms, 80, 'move')
+        self.move_animation_4.params['delay'] = 366.74
+        self.move_animation_4.params['total_distance'] = 10
+        self.move_animation_4.params['start_position'] = 148
+
+        self.color = ray.fade(ray.Color(254, 102, 0, 255), 1.0)
+        self.is_finished = False
+        self.y_pos_list = []
+
+    def update(self, current_ms):
+        self.fade_animation_1.update(current_ms)
+        self.move_animation_1.update(current_ms)
+        self.move_animation_2.update(current_ms)
+        self.move_animation_3.update(current_ms)
+        self.move_animation_4.update(current_ms)
+        self.fade_animation_2.update(current_ms)
+
+        if self.fade_animation_1.is_finished:
+            self.color = ray.fade(ray.Color(254, 102, 0, 255), self.fade_animation_2.attribute)
+        else:
+            self.color = ray.fade(ray.Color(254, 102, 0, 255), self.fade_animation_1.attribute)
+        if self.fade_animation_2.is_finished:
+            self.is_finished = True
+        self.y_pos_list = []
+        for i in range(1, len(str(self.counter))+1):
+            self.y_pos_list.append(self.move_animation_4.attribute + i*5)
+
+    def draw(self, game_screen):
+        if self.move_animation_1.is_finished:
+            x = self.move_animation_2.attribute
+        else:
+            x = self.move_animation_1.attribute
+        if x == 0:
+            return
+        counter = str(self.counter)
+        margin = 20
+        total_width = len(counter) * margin
+        start_x = x - total_width
+        source_rect = ray.Rectangle(0, 0, game_screen.texture_base_score_numbers[0].width, game_screen.texture_base_score_numbers[0].height)
+        for i in range(len(counter)):
+            if self.move_animation_3.is_finished:
+                y = self.y_pos_list[i]
+            elif self.move_animation_2.is_finished:
+                y = self.move_animation_3.attribute
+            else:
+                y = 148
+            dest_rect = ray.Rectangle(start_x + (i * margin), y, game_screen.texture_base_score_numbers[0].width, game_screen.texture_base_score_numbers[0].height)
+            ray.draw_texture_pro(game_screen.texture_base_score_numbers[int(counter[i])], source_rect, dest_rect, ray.Vector2(0,0), 0, self.color)

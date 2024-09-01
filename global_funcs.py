@@ -254,11 +254,15 @@ class Animation:
             self.move(current_ms,
                 self.duration,
                 self.params['total_distance'],
-                self.params['start_position'])
+                self.params['start_position'],
+                delay=self.params.get('delay', 0.0))
         elif self.type == 'texture_change':
             self.texture_change(current_ms,
                 self.duration,
                 self.params['textures'])
+        elif self.type == 'text_stretch':
+            self.text_stretch(current_ms,
+                self.duration)
 
     def fade(self, current_ms, duration, initial_opacity, final_opacity, delay, ease_in, ease_out):
         def ease_out_progress(progress, ease):
@@ -298,8 +302,12 @@ class Animation:
         current_opacity = initial_opacity + (final_opacity - initial_opacity) * progress
         self.attribute = current_opacity
 
-    def move(self, current_ms, duration, total_distance, start_position):
+    def move(self, current_ms, duration, total_distance, start_position, delay):
         elapsed_time = current_ms - self.start_ms
+        if elapsed_time < delay:
+            self.attribute = start_position
+
+        elapsed_time -= delay
         if elapsed_time <= duration:
             progress = elapsed_time / duration
             self.attribute = start_position + (total_distance * progress)
@@ -314,4 +322,14 @@ class Animation:
                 if start < elapsed_time <= end:
                     self.attribute = index
         else:
+            self.is_finished = True
+    def text_stretch(self, current_ms, duration):
+        elapsed_time = current_ms - self.start_ms
+        if elapsed_time <= duration:
+            self.attribute = 2 + 5 * (elapsed_time // 25)
+        elif elapsed_time <= duration + 116:
+            frame_time = (elapsed_time - duration) // 16.57
+            self.attribute = 2 + 10 - (2 * (frame_time + 1))
+        else:
+            self.attribute = 0
             self.is_finished = True
