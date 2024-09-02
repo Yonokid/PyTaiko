@@ -161,6 +161,15 @@ class tja_parser:
         balloon_index = 0
         drumroll_head = dict()
         drumroll_tail = dict()
+        se_notes = {'1': [0, 1, 2],
+            '2': [3, 4],
+            '3': 5,
+            '4': 6,
+            '5': 7,
+            '6': 14,
+            '7': 9,
+            '8': 10,
+            '9': 11}
         for bar in notes:
             #Length of the bar is determined by number of notes excluding commands
             bar_length = sum(len(part) for part in bar if '#' not in part)
@@ -216,9 +225,34 @@ class tja_parser:
                     #Do not add blank notes otherwise lag
                     if note != '0':
                         play_note_list.append({'note': note, 'ms': note_ms, 'load_ms': load_ms, 'ppf': pixels_per_frame, 'index': index})
-                        #print({'note': note, 'ms': int(note_ms), 'load_ms': int(load_ms), 'ppf': int(pixels_per_frame), 'index': index})
+
+                        ### This needs to be moved to its own function later
+                        if len(play_note_list) > 1:
+                            prev_note = play_note_list[-2]
+                            if prev_note['note'] in {'1', '2'}:
+                                if note_ms - prev_note['ms'] < (ms_per_measure/8):
+                                    prev_note['se_note'] = se_notes[prev_note['note']][1]
+                                else:
+                                    prev_note['se_note'] = se_notes[prev_note['note']][0]
+                            else:
+                                prev_note['se_note'] = se_notes[prev_note['note']]
+                            if len(play_note_list) > 3:
+                                if play_note_list[-4]['note'] == play_note_list[-3]['note'] == play_note_list[-2]['note'] == '1':
+                                    if (play_note_list[-3]['ms'] - play_note_list[-4]['ms'] < (ms_per_measure/8)) and (play_note_list[-2]['ms'] - play_note_list[-3]['ms'] < (ms_per_measure/8)):
+                                        if len(play_note_list) > 5:
+                                            if (play_note_list[-4]['ms'] - play_note_list[-5]['ms'] >= (ms_per_measure/8)) and (play_note_list[-1]['ms'] - play_note_list[-2]['ms'] >= (ms_per_measure/8)):
+                                                play_note_list[-3]['se_note'] = se_notes[play_note_list[-3]['note']][2]
+                                        else:
+                                            play_note_list[-3]['se_note'] = se_notes[play_note_list[-3]['note']][2]
+                        else:
+                            play_note_list[-1]['se_note'] = se_notes[note]
+                        if play_note_list[-1]['note'] in {'1', '2'}:
+                            play_note_list[-1]['se_note'] = se_notes[note][0]
+                        else:
+                            play_note_list[-1]['se_note'] = se_notes[note]
+
                         index += 1
-                    if note in ('5', '6', '8'):
+                    if note in {'5', '6', '8'}:
                         play_note_list[-1]['color'] = 255
                     if note == '8' and play_note_list[-2]['note'] in ('7', '9'):
                         play_note_list[-1]['balloon'] = int(balloon[balloon_index])

@@ -127,6 +127,13 @@ class GameScreen:
             filename = f'lane_obi_img{str(i).zfill(5)}.png'
             self.texture_score_numbers.append(ray.load_texture(folder_path + filename))
 
+        self.texture_se_moji = []
+        for i in range(0, 17):
+            filename = f'onp_moji_img{str(i).zfill(5)}.png'
+            if i == 8:
+                filename = 'onp_renda_moji_img00001.png'
+            self.texture_se_moji.append(ray.load_texture(folder_path + filename))
+
         folder_path = 'Graphics\\lumendata\\enso_system\\base1p\\'
         self.texture_balloon_speech_bubble_p1 = ray.load_texture(folder_path + 'action_fusen_1p_img00000.png')
         self.texture_balloon = [ray.load_texture(folder_path + 'action_fusen_1p_img00011.png'),
@@ -457,22 +464,22 @@ class Player:
             self.score_list[0].update(game_screen.current_ms, self.score)
 
     def key_manager(self, game_screen):
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_F) or ray.is_key_pressed(ray.KeyboardKey.KEY_D):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_F):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'DON'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'DON', 'L'))
             ray.play_sound(game_screen.sound_don)
             self.check_note(game_screen, '1')
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_J) or ray.is_key_pressed(ray.KeyboardKey.KEY_K):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_J):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'DON'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'DON', 'R'))
             ray.play_sound(game_screen.sound_don)
             self.check_note(game_screen, '1')
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_E) or ray.is_key_pressed(ray.KeyboardKey.KEY_R):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_D):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'KAT'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'KAT', 'L'))
             ray.play_sound(game_screen.sound_kat)
             self.check_note(game_screen, '2')
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_I) or ray.is_key_pressed(ray.KeyboardKey.KEY_U):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_K):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'KAT'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'KAT', 'R'))
             ray.play_sound(game_screen.sound_kat)
@@ -514,8 +521,8 @@ class Player:
         if tail['note'] == '8':
             drumroll_end_position = self.get_position(game_screen, tail['load_ms'], tail['ppf'])
             length = (drumroll_end_position - drumroll_start_position - 50)
-            self.draw_note(game_screen, drumroll_body, (drumroll_start_position+64), color, drumroll_length=length)
-            self.draw_note(game_screen, drumroll_tail, drumroll_end_position, color, drumroll_length=None)
+            self.draw_note(game_screen, drumroll_body, (drumroll_start_position+64), color, 8, drumroll_length=length)
+            self.draw_note(game_screen, drumroll_tail, drumroll_end_position, color, 10, drumroll_length=None)
 
     def draw_balloon(self, game_screen, note, position, index):
         end_time = self.current_notes_draw[index+1]
@@ -528,13 +535,14 @@ class Player:
             position = end_time_position
         elif game_screen.current_ms >= note['ms']:
             position = 349
-        self.draw_note(game_screen, '7', position, 255)
+        self.draw_note(game_screen, '7', position, 255, 9)
 
-    def draw_note(self, game_screen, note, position, color, drumroll_length=None):
+    def draw_note(self, game_screen, note, position, color, se_note, drumroll_length=None):
         note_padding = 64
         if note == 'barline':
             y = 184
             ray.draw_texture(game_screen.texture_barline, position+note_padding-4, y+6, ray.WHITE)
+            return
         elif note in game_screen.note_type_dict:
             eighth_in_ms = (60000 * 4 / game_screen.tja.bpm) / 8
             if self.combo >= 50:
@@ -551,14 +559,22 @@ class Player:
             else:
                 offset = 0
                 balloon = False
-            source_rect = ray.Rectangle(0,0,game_screen.note_type_dict[note][0].width,game_screen.note_type_dict[note][0].height)
             if drumroll_length == None:
-                dest_rect = ray.Rectangle(position-offset, 192, game_screen.note_type_dict[note][0].width,game_screen.note_type_dict[note][0].height)
-            else:
-                dest_rect = ray.Rectangle(position-offset, 192, drumroll_length,game_screen.note_type_dict['1'][0].height)
+                drumroll_length = game_screen.note_type_dict[note][0].width
+            source_rect = ray.Rectangle(0,0,game_screen.note_type_dict[note][0].width,game_screen.note_type_dict[note][0].height)
+            dest_rect = ray.Rectangle(position-offset, 192, drumroll_length,game_screen.note_type_dict['1'][0].height)
             ray.draw_texture_pro(game_screen.note_type_dict[note][current_eighth % 2], source_rect, dest_rect, ray.Vector2(0,0), 0, ray.Color(255, draw_color, draw_color, 255))
             if balloon:
                 ray.draw_texture(game_screen.note_type_dict['balloon_tail'][current_eighth % 2], position-offset+128, 192, ray.Color(255, draw_color, draw_color, 255))
+            if se_note != None:
+                if drumroll_length == game_screen.note_type_dict[note][0].width:
+                    drumroll_length = game_screen.texture_se_moji[se_note].width
+                    offset = 0
+                else:
+                    offset = 30
+                source_rect = ray.Rectangle(0,0,game_screen.texture_se_moji[se_note].width,game_screen.texture_se_moji[se_note].height)
+                dest_rect = ray.Rectangle(position-offset - (game_screen.texture_se_moji[se_note].width // 2) + 64, 323, drumroll_length,game_screen.texture_se_moji[se_note].height)
+                ray.draw_texture_pro(game_screen.texture_se_moji[se_note], source_rect, dest_rect, ray.Vector2(0,0), 0, ray.WHITE)
 
     def draw_notes(self, game_screen):
         if len(self.current_notes_draw) != 0 or len(self.current_bars) != 0:
@@ -566,7 +582,7 @@ class Player:
                 bar = self.current_bars[i]
                 load_ms, pixels_per_frame = bar['load_ms'], bar['ppf']
                 position = self.get_position(game_screen, load_ms, pixels_per_frame)
-                self.draw_note(game_screen, 'barline', position, 255)
+                self.draw_note(game_screen, 'barline', position, 255, None)
 
             for i in range(len(self.current_notes_draw)-1, -1, -1):
                 note = self.current_notes_draw[i]
@@ -581,7 +597,7 @@ class Player:
                 if note_type == '7':
                     self.draw_balloon(game_screen, note, position, i)
                 else:
-                    self.draw_note(game_screen, note_type, position, 255)
+                    self.draw_note(game_screen, note_type, position, 255, note['se_note'])
 
     def draw(self, game_screen):
         ray.draw_texture(game_screen.texture_lane, 332, 184, ray.WHITE)
