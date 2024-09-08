@@ -3,6 +3,7 @@ import sys
 
 from entry import *
 from game import *
+from title import *
 
 class Screens:
     TITLE = "TITLE"
@@ -21,23 +22,23 @@ def main():
     ray.set_window_min_size(screen_width, screen_height)
     ray.init_window(screen_width, screen_height, "PyTaiko")
 
-    current_screen = Screens.ENTRY
+    current_screen = Screens.TITLE
     frames_counter = 0
 
     ray.init_audio_device()
 
+    title_screen = TitleScreen(screen_width, screen_height)
     entry_screen = EntryScreen(screen_width, screen_height)
     game_screen = GameScreen(screen_width, screen_height)
 
     screen_mapping = {
         Screens.ENTRY: entry_screen,
-        #Screens.TITLE: title_screen,
+        Screens.TITLE: title_screen,
         #Screens.SONG_SELECT: song_select_screen,
         Screens.GAME: game_screen,
         #Screens.RESULT: result_screen
     }
 
-    #ray.set_target_fps(144)
     start_song = False
     while not ray.window_should_close():
         ray.begin_drawing()

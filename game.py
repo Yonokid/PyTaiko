@@ -111,6 +111,8 @@ class GameScreen:
                                    ray.load_texture(folder_path + 'lane_obi_img00022.png'),
                                    ray.load_texture(folder_path + 'lane_obi_img00023.png'),
                                    ray.load_texture(folder_path + 'lane_obi_img00024.png'),
+                                   ray.load_texture(folder_path + 'lane_obi_img00025.png'),
+                                   ray.load_texture(folder_path + 'lane_obi_img00025.png'),
                                    ray.load_texture(folder_path + 'lane_obi_img00025.png')]
 
         self.texture_combo_text = [ray.load_texture(folder_path + 'lane_obi_img00035.png'),
@@ -168,6 +170,7 @@ class GameScreen:
         self.load_textures()
         self.load_sounds()
 
+        #Map notes to textures
         self.note_type_dict = {'1': self.texture_don,
                                '2': self.texture_kat,
                                '3': self.texture_dai_don,
@@ -188,6 +191,7 @@ class GameScreen:
         self.song_music = ray.load_music_stream(self.tja.wave)
         ray.play_music_stream(self.song_music)
         self.start_ms = get_current_ms() - self.tja.offset*1000
+        self.profiler = Profiler()
 
     def update(self):
         ray.update_music_stream(self.song_music)
@@ -195,7 +199,7 @@ class GameScreen:
         self.player_1.update(self)
 
     def draw(self):
-        self.player_1.draw(self)
+        self.profiler.profile(self.player_1.draw, (self))
 
 class Player:
     def __init__(self, game_screen, player_number, difficulty):
@@ -393,6 +397,13 @@ class Player:
             self.curr_drumroll_count = 0
             self.curr_balloon_count = 0
             current_note = self.current_notes[0]
+            #Fix later
+            '''
+            i = 0
+            while current_note['note'] in {'5', '6', '7', '8'}:
+                i += 1
+                current_note = self.current_notes[i]
+            '''
             note_type = current_note['note']
             note_ms = current_note['ms']
             #If the wrong key was hit, stop checking
@@ -427,6 +438,7 @@ class Player:
                 self.draw_judge_list.append(Judgement(game_screen.current_ms, 'BAD', big))
                 self.bad_count += 1
                 self.combo = 0
+                self.current_notes.popleft()
 
     def drumroll_counter_manager(self, game_screen):
         if self.is_drumroll and self.curr_drumroll_count > 0:
@@ -434,7 +446,7 @@ class Player:
                 self.drumroll_counter.append(DrumrollCounter(game_screen.current_ms))
 
         if len(self.drumroll_counter) > 0:
-            if self.drumroll_counter[0].is_finished:
+            if self.drumroll_counter[0].is_finished and not self.is_drumroll:
                 self.drumroll_counter.pop(0)
             else:
                 self.drumroll_counter[0].update(game_screen, game_screen.current_ms, self.curr_drumroll_count)
@@ -464,22 +476,22 @@ class Player:
             self.score_list[0].update(game_screen.current_ms, self.score)
 
     def key_manager(self, game_screen):
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_F):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_F) or ray.is_key_pressed(ray.KeyboardKey.KEY_D):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'DON'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'DON', 'L'))
             ray.play_sound(game_screen.sound_don)
             self.check_note(game_screen, '1')
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_J):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_J) or ray.is_key_pressed(ray.KeyboardKey.KEY_K):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'DON'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'DON', 'R'))
             ray.play_sound(game_screen.sound_don)
             self.check_note(game_screen, '1')
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_D):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_E) or ray.is_key_pressed(ray.KeyboardKey.KEY_R):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'KAT'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'KAT', 'L'))
             ray.play_sound(game_screen.sound_kat)
             self.check_note(game_screen, '2')
-        if ray.is_key_pressed(ray.KeyboardKey.KEY_K):
+        if ray.is_key_pressed(ray.KeyboardKey.KEY_I) or ray.is_key_pressed(ray.KeyboardKey.KEY_U):
             self.draw_effect_list.append(LaneHitEffect(game_screen.current_ms, 'KAT'))
             self.draw_drum_hit_list.append(DrumHitEffect(game_screen.current_ms, 'KAT', 'R'))
             ray.play_sound(game_screen.sound_kat)
@@ -498,6 +510,7 @@ class Player:
         self.animation_manager(game_screen, self.base_score_list)
         self.score_manager(game_screen)
         self.key_manager(game_screen)
+        return None
 
     def draw_animation_list(self, game_screen, animation_list):
         for animation in animation_list:
@@ -546,7 +559,7 @@ class Player:
         elif note in game_screen.note_type_dict:
             eighth_in_ms = (60000 * 4 / game_screen.tja.bpm) / 8
             if self.combo >= 50:
-                current_eighth = int(game_screen.current_ms // eighth_in_ms)
+                current_eighth = int((game_screen.current_ms - game_screen.start_ms) // eighth_in_ms)
             else:
                 current_eighth = 0
             if note in {'5', '6', 'drumroll_tail', 'dai_drumroll_tail', 'drumroll_body', 'dai_drumroll_body'}:
