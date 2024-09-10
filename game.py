@@ -191,7 +191,6 @@ class GameScreen:
         self.song_music = ray.load_music_stream(self.tja.wave)
         ray.play_music_stream(self.song_music)
         self.start_ms = get_current_ms() - self.tja.offset*1000
-        self.profiler = Profiler()
 
     def update(self):
         ray.update_music_stream(self.song_music)
@@ -199,7 +198,7 @@ class GameScreen:
         self.player_1.update(self)
 
     def draw(self):
-        self.profiler.profile(self.player_1.draw, (self))
+        self.player_1.draw(self)
 
 class Player:
     def __init__(self, game_screen, player_number, difficulty):

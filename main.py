@@ -42,12 +42,15 @@ def main():
     start_song = False
     while not ray.window_should_close():
         ray.begin_drawing()
-        ray.clear_background(ray.WHITE)
+        screen = screen_mapping[current_screen]
+        if screen == title_screen:
+            ray.clear_background(ray.BLACK)
+        else:
+            ray.clear_background(ray.WHITE)
 
         if ray.is_key_pressed(ray.KeyboardKey.KEY_F11):
             ray.toggle_fullscreen()
 
-        screen = screen_mapping[current_screen]
         if screen == game_screen and not start_song:
             game_screen.init_tja(sys.argv[1], sys.argv[2])
             start_song = True

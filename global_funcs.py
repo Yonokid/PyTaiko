@@ -1,6 +1,7 @@
 import time
 import os
 import pyray as ray
+import cv2
 
 from collections import deque
 
@@ -303,6 +304,8 @@ class tja_parser:
                 elif '#GOGOEND' in part:
                     self.gogo_time = False
                     continue
+                elif '#LYRIC' in part:
+                    continue
                 #Unrecognized commands will be skipped for now
                 elif '#' in part:
                     continue
@@ -408,6 +411,12 @@ class Animation:
         elif self.type == 'text_stretch':
             self.text_stretch(current_ms,
                 self.duration)
+        elif self.type == 'texture_resize':
+            self.texture_resize(current_ms,
+                self.duration,
+                initial_size=self.params.get('initial_size', 1.0),
+                final_size=self.params.get('final_size', 1.0),
+                delay=self.params.get('delay', 0.0))
 
     def fade(self, current_ms, duration, initial_opacity, final_opacity, delay, ease_in, ease_out):
         def ease_out_progress(progress, ease):
@@ -478,67 +487,124 @@ class Animation:
         else:
             self.attribute = 0
             self.is_finished = True
-
-import cv2
+    def texture_resize(self, current_ms, duration, initial_size, final_size, delay):
+        elapsed_time = current_ms - self.start_ms
+        if elapsed_time < delay:
+            self.attribute = initial_size
+        elapsed_time -= delay
+        if elapsed_time >= duration:
+            self.attribute = final_size
+            self.is_finished = True
+        elif elapsed_time < duration:
+            progress = elapsed_time / duration
+            self.attribute = initial_size + ((final_size - initial_size) * progress)
+        else:
+            self.attribute = final_size
+            self.is_finished = True
 
 class VideoPlayer:
     def __init__(self, path, loop_start=None):
-        video_path = path
-        audio_path = path[:-4] + '.ogg'
+        self.video_path = path
+        self.start_ms = None
         self.loop_start = loop_start
-        self.cap = cv2.VideoCapture(video_path)
-        fps = self.cap.get(cv2.CAP_PROP_FPS)
-        self.frame_texture = None
-        self.frame_time = (1.0 / fps) * 1000
-        self.start_ms = get_current_ms()
-        self.audio = ray.load_music_stream(audio_path)
-        if loop_start is None:
-            self.audio.looping = False
-        self.is_finished = [False, False]
-        ray.play_music_stream(self.audio)
 
+        self.current_frame = None
+        self.last_frame = self.current_frame
+        self.frame_index = 0
+        self.frames = []
+        self.cap = cv2.VideoCapture(self.video_path)
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+
+        self.is_finished = [False, False]
+        audio_path = path[:-4] + '.ogg'
+        self.audio = ray.load_music_stream(audio_path)
+
+    def convert_frames_background(self, index):
         if not self.cap.isOpened():
-            print("Error: Could not open video file.")
-            return
+            raise ValueError("Error: Could not open video file.")
+
+        total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if len(self.frames) == total_frames:
+            return 0
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, index)
+
+        success, frame = self.cap.read()
+
+        timestamp = (index / self.fps * 1000)
+        frame_rgb  = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        new_frame = ray.Image(frame_rgb.tobytes(), frame_rgb.shape[1], frame_rgb.shape[0], 1, ray.PixelFormat.PIXELFORMAT_UNCOMPRESSED_R8G8B8)
+
+        self.frames.append((timestamp, new_frame))
+        print(len(self.frames), total_frames)
+
+    def convert_frames(self):
+        '''
+        if ray.file_exists(path[:-4] + '.pkl'):
+            self.object_file = path[:-4] + '.pkl'
+            with open(self.object_file, 'rb') as f:
+                self.frames = pickle.load(f)
+            print(f"Loaded {path[:-4] + '.pkl'}")
+        else:
+            self.object_file = None
+        if self.object_file is None:
+        '''
+        if not self.cap.isOpened():
+            raise ValueError("Error: Could not open video file.")
+
+        frame_count = 0
+        success, frame = self.cap.read()
+
+        while success:
+            timestamp = (frame_count / self.fps * 1000)
+            frame_rgb  = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            new_frame = ray.Image(frame_rgb.tobytes(), frame_rgb.shape[1], frame_rgb.shape[0], 1, ray.PixelFormat.PIXELFORMAT_UNCOMPRESSED_R8G8B8)
+
+            self.frames.append((timestamp, new_frame))
+
+            success, frame = self.cap.read()
+            frame_count += 1
+
+        self.cap.release()
+        print(f"Extracted {len(self.frames)} frames.")
+        '''
+        with open(path[:-4] + '.pkl', 'wb') as f:
+            pickle.dump(self.frames, f)
+        '''
+        self.start_ms = get_current_ms()
 
     def update(self):
-        current_ms = get_current_ms()
-        elapsed_time = current_ms - self.start_ms
+        if self.start_ms is None:
+            self.start_ms = get_current_ms()
+            ray.play_music_stream(self.audio)
+        if self.frames == []:
+            self.convert_frames()
         ray.update_music_stream(self.audio)
-        if not ray.is_music_stream_playing(self.audio):
+        time_played = ray.get_music_time_played(self.audio) / ray.get_music_time_length(self.audio)
+        if time_played > 0.95:
             self.is_finished[1] = True
 
-        if elapsed_time >= self.frame_time:
-            ret, frame = self.cap.read()
+        if self.frame_index == len(self.frames)-1:
+            self.is_finished[0] = True
+            return
+        timestamp, frame = self.frames[self.frame_index][0], self.frames[self.frame_index][1]
 
-            if not ret:
-                # Reset to the loop start frame
-                if self.loop_start == None:
-                    self.is_finished[0] = True
-                else:
-                    self.cap.set(cv2.CAP_PROP_POS_FRAMES, self.loop_start)
-                ret, frame = self.cap.read()  # Read the frame at loop start
-                if not ret:
-                    return  # If still not successful, return
-
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            image = ray.Image(frame_rgb.tobytes(), frame_rgb.shape[1], frame_rgb.shape[0], 1, ray.PIXELFORMAT_UNCOMPRESSED_R8G8B8)
-            new_texture = ray.load_texture_from_image(image)
-
-            # Unload the previous texture if it exists
-            if self.frame_texture:
-                ray.unload_texture(self.frame_texture)
-
-            # Assign the new texture to the instance variable
-            self.frame_texture = new_texture
-            self.start_ms = current_ms
+        if self.start_ms is not None:
+            elapsed_time = get_current_ms() - self.start_ms
+            if elapsed_time >= timestamp:
+                self.current_frame = ray.load_texture_from_image(frame)
+                if self.last_frame != self.current_frame and self.last_frame is not None:
+                    ray.unload_texture(self.last_frame)
+                self.frame_index += 1
+                self.last_frame = self.current_frame
 
     def draw(self):
-        if self.frame_texture:
-            ray.draw_texture(self.frame_texture, 0, 0, ray.WHITE)
+        if self.current_frame is not None:
+            ray.draw_texture(self.current_frame, 0, 0, ray.WHITE)
 
     def __del__(self):
-        # Ensure resources are cleaned up when the instance is deleted
-        if self.frame_texture:
-            ray.unload_texture(self.frame_texture)
-        self.cap.release()
+        if hasattr(self, 'current_frame') and self.current_frame:
+            ray.unload_texture(self.current_frame)
+        if hasattr(self, 'last_frame') and self.last_frame:
+            ray.unload_texture(self.last_frame)
