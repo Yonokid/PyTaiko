@@ -40,7 +40,7 @@ jobs:
           nuitka-version: main
           script-name: main.py
           standalone: true
-          include-module: raylib
+          include-module: raylib, cv2
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
