@@ -1,6 +1,5 @@
 import pyray as ray
 import numpy as np
-import vlc
 import cv2
 import os
 import random
