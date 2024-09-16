@@ -10,7 +10,12 @@ class TitleScreen:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.op_video = VideoPlayer('Videos\\OP.mp4')
+        self.op_videos = []
+        for root, folder, files in os.walk('Videos\\op_videos'):
+            for file in files:
+                if file.endswith('.mp4'):
+                    self.op_videos.append(VideoPlayer(root + '\\' + file))
+        self.current_op_video = random.choice(self.op_videos)
         self.attract_videos = []
         for root, folder, files in os.walk('Videos\\attract_videos'):
             for file in files:
@@ -53,11 +58,11 @@ class TitleScreen:
         self.texture_black = ray.load_texture('Graphics\\lumendata\\attract\\movie\\movie_img00000.png')
 
     def scene_manager(self):
-        if self.op_video is not None:
+        if self.current_op_video is not None:
             self.scene = 'Opening Video'
-            self.op_video.update()
-            if all(self.op_video.is_finished):
-                self.op_video = None
+            self.current_op_video.update()
+            if all(self.current_op_video.is_finished):
+                self.current_op_video = None
                 self.warning = WarningBoard(get_current_ms(), self)
         elif self.warning is not None:
             self.scene = 'Warning Board'
@@ -70,7 +75,7 @@ class TitleScreen:
             self.current_attract_video.update()
             if all(self.current_attract_video.is_finished):
                 self.current_attract_video = None
-                self.op_video = VideoPlayer('Videos\\OP.mp4')
+                self.current_op_video = random.choice(self.op_videos)
 
 
     def update(self):
@@ -80,8 +85,8 @@ class TitleScreen:
         return None
 
     def draw(self):
-        if self.op_video is not None:
-            self.op_video.draw()
+        if self.current_op_video is not None:
+            self.current_op_video.draw()
         elif self.warning is not None:
             bg_source = ray.Rectangle(0, 0, self.texture_bg.width, self.texture_bg.height)
             bg_dest = ray.Rectangle(0, 0, self.width, self.height)
