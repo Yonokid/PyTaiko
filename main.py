@@ -17,10 +17,13 @@ def main():
     screen_height = 720
 
     ray.set_config_flags(ray.ConfigFlags.FLAG_VSYNC_HINT)
+    ray.set_config_flags(ray.ConfigFlags.FLAG_MSAA_4X_HINT)
 
     ray.set_window_max_size(screen_width, screen_height)
     ray.set_window_min_size(screen_width, screen_height)
     ray.init_window(screen_width, screen_height, "PyTaiko")
+    ray.toggle_borderless_windowed()
+    #ray.maximize_window()
 
     current_screen = Screens.TITLE
     frames_counter = 0
@@ -39,9 +42,12 @@ def main():
         #Screens.RESULT: result_screen
     }
 
+    target = ray.load_render_texture(screen_width, screen_height)
+    ray.set_texture_filter(target.texture, ray.TextureFilter.TEXTURE_FILTER_TRILINEAR)
     start_song = False
+    ray.set_exit_key(ray.KeyboardKey.KEY_A)
     while not ray.window_should_close():
-        ray.begin_drawing()
+        ray.begin_texture_mode(target)
         screen = screen_mapping[current_screen]
         if screen == title_screen:
             ray.clear_background(ray.BLACK)
@@ -50,6 +56,8 @@ def main():
 
         if ray.is_key_pressed(ray.KeyboardKey.KEY_F11):
             ray.toggle_fullscreen()
+        elif ray.is_key_pressed(ray.KeyboardKey.KEY_F12):
+            ray.toggle_borderless_windowed()
 
         if screen == game_screen and not start_song:
             game_screen.init_tja(sys.argv[1], sys.argv[2])
@@ -61,6 +69,9 @@ def main():
             current_screen = next_screen
 
         ray.draw_fps(20, 20)
+        ray.end_texture_mode()
+        ray.begin_drawing()
+        ray.draw_texture_pro(target.texture, ray.Rectangle(0, 0, target.texture.width, -target.texture.height), ray.Rectangle(0, 0, ray.get_render_width(), ray.get_render_height()), ray.Vector2(0,0), 0, ray.WHITE)
         ray.end_drawing()
     ray.close_window()
     ray.close_audio_device()
