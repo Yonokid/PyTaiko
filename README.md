@@ -16,13 +16,9 @@ Idk. We'll see what happens when I get there
 
 - Add Kusudama notes
 
-- Draw drumrolls to the correct size
+- add basic song select
 
-- Add gogotime effect
-
-- Add gauge
-
-- Add background
+- add basic results screen
 
 
 ## Known Issues
