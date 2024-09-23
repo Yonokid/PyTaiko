@@ -22,7 +22,8 @@ def main():
     ray.set_window_max_size(screen_width, screen_height)
     ray.set_window_min_size(screen_width, screen_height)
     ray.init_window(screen_width, screen_height, "PyTaiko")
-    ray.toggle_borderless_windowed()
+    #ray.toggle_borderless_windowed()
+    ray.clear_window_state(ray.ConfigFlags.FLAG_WINDOW_TOPMOST)
     #ray.maximize_window()
 
     current_screen = Screens.TITLE
@@ -42,11 +43,13 @@ def main():
         #Screens.RESULT: result_screen
     }
 
+    #Drawing as a render texture causes some weird issue with the notes having an extra shadow, $50 bounty for whoever fixes it
     target = ray.load_render_texture(screen_width, screen_height)
     ray.set_texture_filter(target.texture, ray.TextureFilter.TEXTURE_FILTER_TRILINEAR)
     start_song = False
     ray.set_exit_key(ray.KeyboardKey.KEY_A)
     while not ray.window_should_close():
+
         ray.begin_texture_mode(target)
         screen = screen_mapping[current_screen]
         if screen == title_screen:
@@ -56,6 +59,7 @@ def main():
 
         if ray.is_key_pressed(ray.KeyboardKey.KEY_F11):
             ray.toggle_fullscreen()
+            ray.is_window_fullscreen()
         elif ray.is_key_pressed(ray.KeyboardKey.KEY_F12):
             ray.toggle_borderless_windowed()
 

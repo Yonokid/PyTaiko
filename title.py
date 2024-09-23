@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 import os
 import random
-from global_funcs import Animation, VideoPlayer, get_current_ms
+from global_funcs import Animation, VideoPlayer, get_current_ms, load_texture_from_zip
 
 class TitleScreen:
     def __init__(self, width, height):
@@ -26,27 +26,28 @@ class TitleScreen:
         self.load_textures()
 
     def load_textures(self):
-        self.texture_bg = ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00000.png')
-        self.texture_warning = ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00001.png')
-        self.texture_warning_ch1 = [ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00004.png'),
-                                    ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00009.png'),
-                                    ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00016.png')]
-        self.texture_warning_ch1_base = ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00002.png')
-        self.texture_warning_ch2 = [ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00005.png'),
-                                    ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00006.png'),
-                                    ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00007.png'),
-                                    ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00008.png'),
-                                    ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00010.png'),
-                                    ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00011.png'),
-                                    ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00012.png'),
-                                    ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00013.png'),
-                                    ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00017.png')]
-        self.texture_warning_ch2_base = ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00003.png')
-        self.texture_warning_bachi = ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00019.png')
-        self.texture_warning_bachi_hit = ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00018.png')
+        zip_file = 'Graphics\\lumendata\\attract\\keikoku.zip'
+        self.texture_bg = load_texture_from_zip(zip_file, 'keikoku_img00000.png')
+        self.texture_warning = load_texture_from_zip(zip_file, 'keikoku_img00001.png')
+        self.texture_warning_ch1 = [load_texture_from_zip(zip_file, 'keikoku_img00004.png'),
+                                    load_texture_from_zip(zip_file, 'keikoku_img00009.png'),
+                                    load_texture_from_zip(zip_file, 'keikoku_img00016.png')]
+        self.texture_warning_ch1_base = load_texture_from_zip(zip_file, 'keikoku_img00002.png')
+        self.texture_warning_ch2 = [load_texture_from_zip(zip_file, 'keikoku_img00005.png'),
+                                    load_texture_from_zip(zip_file, 'keikoku_img00006.png'),
+                                    load_texture_from_zip(zip_file, 'keikoku_img00007.png'),
+                                    load_texture_from_zip(zip_file, 'keikoku_img00008.png'),
+                                    load_texture_from_zip(zip_file, 'keikoku_img00010.png'),
+                                    load_texture_from_zip(zip_file, 'keikoku_img00011.png'),
+                                    load_texture_from_zip(zip_file, 'keikoku_img00012.png'),
+                                    load_texture_from_zip(zip_file, 'keikoku_img00013.png'),
+                                    load_texture_from_zip(zip_file, 'keikoku_img00017.png')]
+        self.texture_warning_ch2_base = load_texture_from_zip(zip_file, 'keikoku_img00003.png')
+        self.texture_warning_bachi = load_texture_from_zip(zip_file, 'keikoku_img00019.png')
+        self.texture_warning_bachi_hit = load_texture_from_zip(zip_file, 'keikoku_img00018.png')
 
-        self.texture_warning_x_1 = ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00014.png')
-        self.texture_warning_x_2 = ray.load_texture('Graphics\\lumendata\\attract\\keikoku\\keikoku_img00015.png')
+        self.texture_warning_x_1 = load_texture_from_zip(zip_file, 'keikoku_img00014.png')
+        self.texture_warning_x_2 = load_texture_from_zip(zip_file, 'keikoku_img00015.png')
 
 
         self.sound_bachi_swipe = ray.load_sound('Sounds\\title\\SE_ATTRACT_2.ogg')
@@ -54,7 +55,7 @@ class TitleScreen:
         self.sound_warning_message = ray.load_sound('Sounds\\title\\VO_ATTRACT_3.ogg')
         self.sound_warning_error = ray.load_sound('Sounds\\title\\SE_ATTRACT_1.ogg')
 
-        self.texture_black = ray.load_texture('Graphics\\lumendata\\attract\\movie\\movie_img00000.png')
+        self.texture_black = load_texture_from_zip('Graphics\\lumendata\\attract\\movie.zip', 'movie_img00000.png')
 
     def scene_manager(self):
         if self.current_op_video is not None:
@@ -100,15 +101,19 @@ class WarningBoard:
     def __init__(self, current_ms, title_screen):
         self.start_ms = current_ms
         self.error_time = 4250
+
+        #Move warning board down from top of screen
         self.move_animation_1 = Animation(current_ms, 266.67, 'move')
         self.move_animation_1.params['start_position'] = -720
         self.move_animation_1.params['total_distance'] = title_screen.height + ((title_screen.height - title_screen.texture_warning.height)//2) + 20
 
+        #Move warning board up a little bit
         self.move_animation_2 = Animation(current_ms, 116.67, 'move')
         self.move_animation_2.params['start_position'] = 92 + 20
         self.move_animation_2.params['delay'] = 266.67
         self.move_animation_2.params['total_distance'] = -30
 
+        #And finally into its correct position
         self.move_animation_3 = Animation(current_ms, 116.67, 'move')
         self.move_animation_3.params['start_position'] = 82
         self.move_animation_3.params['delay'] = 383.34
@@ -119,6 +124,7 @@ class WarningBoard:
         self.fade_animation_1.params['initial_opacity'] = 0.0
         self.fade_animation_1.params['final_opacity'] = 1.0
 
+        #Fade to black
         self.fade_animation_2 = Animation(current_ms, 500, 'fade')
         self.fade_animation_2.params['initial_opacity'] = 0.0
         self.fade_animation_2.params['final_opacity'] = 1.0
@@ -132,39 +138,29 @@ class WarningBoard:
         self.resize_animation_1.params['initial_size'] = 1.0
         self.resize_animation_1.params['final_size'] = 1.5
         self.resize_animation_1.params['delay'] = self.error_time
-
-        self.resize_animation_2 = Animation(current_ms, 166.67, 'texture_resize')
-        self.resize_animation_2.params['initial_size'] = 1.5
-        self.resize_animation_2.params['final_size'] = 1.0
-        self.resize_animation_2.params['delay'] = self.error_time + 166.67
+        self.resize_animation_1.params['reverse'] = 0
 
         self.fade_animation_4 = Animation(current_ms, 166.67, 'fade')
         self.fade_animation_4.params['delay'] = self.error_time
         self.fade_animation_4.params['initial_opacity'] = 0.0
         self.fade_animation_4.params['final_opacity'] = 1.0
-
-        self.fade_animation_5 = Animation(current_ms, 166.67, 'fade')
-        self.fade_animation_5.params['delay'] = self.error_time + 166.67 + 166.67
-        self.fade_animation_5.params['initial_opacity'] = 1.0
-        self.fade_animation_5.params['final_opacity'] = 0.0
+        self.fade_animation_4.params['reverse'] = 166.67
 
         self.fade_animation_6 = Animation(current_ms, 166.67, 'fade')
         self.fade_animation_6.params['delay'] = self.error_time + 166.67 + 166.67
         self.fade_animation_6.params['initial_opacity'] = 0.0
         self.fade_animation_6.params['final_opacity'] = 1.0
 
+        #Bachi hit
         self.resize_animation_3 = Animation(current_ms, 233.34, 'texture_resize')
         self.resize_animation_3.params['initial_size'] = 0.5
         self.resize_animation_3.params['final_size'] = 1.5
 
+        #Bachi hit
         self.fade_animation_7 = Animation(current_ms, 116.67, 'fade')
         self.fade_animation_7.params['initial_opacity'] = 0.0
         self.fade_animation_7.params['final_opacity'] = 1.0
-
-        self.fade_animation_8 = Animation(current_ms, 116.67, 'fade')
-        self.fade_animation_8.params['delay'] = 116.67
-        self.fade_animation_8.params['initial_opacity'] = 1.0
-        self.fade_animation_8.params['final_opacity'] = 0.0
+        self.fade_animation_7.params['reverse'] = 0
 
         self.source_rect = ray.Rectangle(0, 0, title_screen.texture_black.width, title_screen.texture_black.height)
         self.dest_rect = ray.Rectangle(0, 0, title_screen.width, title_screen.height)
@@ -190,10 +186,8 @@ class WarningBoard:
         self.fade_animation_2.update(current_ms)
         self.fade_animation_3.update(current_ms)
         self.fade_animation_4.update(current_ms)
-        self.fade_animation_5.update(current_ms)
         self.fade_animation_6.update(current_ms)
         self.resize_animation_1.update(current_ms)
-        self.resize_animation_2.update(current_ms)
         delay = 566.67
         elapsed_time = current_ms - self.start_ms
         if self.character_index(1) != 8:
@@ -206,10 +200,9 @@ class WarningBoard:
                 self.hit_played = True
                 ray.play_sound(title_screen.sound_bachi_hit)
                 self.resize_animation_3.start_ms = current_ms
-                self.fade_animation_8.start_ms = current_ms
+                self.fade_animation_7.start_ms = current_ms
             self.resize_animation_3.update(current_ms)
             self.fade_animation_7.update(current_ms)
-            self.fade_animation_8.update(current_ms)
 
         if self.error_time + 166.67 <= elapsed_time and not self.error_played:
             self.error_played = True
@@ -262,23 +255,14 @@ class WarningBoard:
         if self.character_index(1) == 8:
             ray.draw_texture(title_screen.texture_warning_bachi, 350, int(y)+135, ray.WHITE)
 
-        if self.resize_animation_1.is_finished:
-            scale = self.resize_animation_2.attribute
-            width = title_screen.texture_warning_x_1.width
-            height = title_screen.texture_warning_x_1.height
-            x_x = 150 + (width//2) - ((width * scale)//2)
-            x_y = 200 + (height//2) - ((height * scale)//2)
-            fade = ray.fade(ray.WHITE, self.fade_animation_5.attribute)
-        else:
-            scale = self.resize_animation_1.attribute
-            width = title_screen.texture_warning_x_1.width
-            height = title_screen.texture_warning_x_1.height
-            x_x = 150 + (width//2) - ((width * scale)//2)
-            x_y = 200 + (height//2) - ((height * scale)//2)
-            fade = ray.fade(ray.WHITE, self.fade_animation_4.attribute)
+        scale = self.resize_animation_1.attribute
+        width = title_screen.texture_warning_x_1.width
+        height = title_screen.texture_warning_x_1.height
+        x_x = 150 + (width//2) - ((width * scale)//2)
+        x_y = 200 + (height//2) - ((height * scale)//2)
         x_source = ray.Rectangle(0, 0, width, height)
         x_dest = ray.Rectangle(x_x, x_y, width*scale, height*scale)
-        ray.draw_texture_pro(title_screen.texture_warning_x_1, x_source, x_dest, ray.Vector2(0,0), 0, fade)
+        ray.draw_texture_pro(title_screen.texture_warning_x_1, x_source, x_dest, ray.Vector2(0,0), 0, ray.fade(ray.WHITE, self.fade_animation_4.attribute))
 
         scale = self.resize_animation_3.attribute
         width = title_screen.texture_warning_bachi_hit.width
@@ -287,10 +271,5 @@ class WarningBoard:
         hit_y = 225 + (height//2) - ((height * scale)//2)
         hit_source = ray.Rectangle(0, 0, width, height)
         hit_dest = ray.Rectangle(hit_x, hit_y, width*scale, height*scale)
-        if self.fade_animation_7.is_finished:
-            fade = ray.fade(ray.WHITE, self.fade_animation_8.attribute)
-        else:
-            fade = ray.fade(ray.WHITE, self.fade_animation_7.attribute)
-        ray.draw_texture_pro(title_screen.texture_warning_bachi_hit, hit_source, hit_dest, ray.Vector2(0,0), 0, fade)
-
+        ray.draw_texture_pro(title_screen.texture_warning_bachi_hit, hit_source, hit_dest, ray.Vector2(0,0), 0, ray.fade(ray.WHITE, self.fade_animation_7.attribute))
         ray.draw_texture_pro(title_screen.texture_black, self.source_rect, self.dest_rect, ray.Vector2(0,0), 0, ray.fade(ray.WHITE, self.fade_animation_2.attribute))

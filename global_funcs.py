@@ -2,107 +2,32 @@ import time
 import os
 import pyray as ray
 import cv2
+import zipfile
+import tempfile
 
 from collections import deque
 
 #TJA Format creator is unknown. I did not create the format, but I did write the parser though.
 
-import cProfile
-import pstats
-import io
-import sys
+def load_image_from_zip(zip_path, filename):
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        with zip_ref.open(filename) as image_file:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+                temp_file.write(image_file.read())
+                temp_file_path = temp_file.name
+        image = ray.load_image(temp_file_path)
+        os.remove(temp_file_path)
+        return image
 
-class Profiler:
-    def __init__(self):
-        self.profiler = cProfile.Profile()
-        self.stats = None
-        self.calls = 0
-        self.profiled_functions = set()  # Track profiled functions
-        self.previous_order = []  # Track previous order of functions
-
-    def profile(self, func, *args, **kwargs):
-        func_name = func.__name__
-        self.calls += 1
-
-        # Start profiling
-        self.profiler.enable()
-        func(*args, **kwargs)
-        self.profiler.disable()
-
-        # Collect and update stats
-        if self.stats is None:
-            self.stats = pstats.Stats(self.profiler)
-        else:
-            self.stats.add(self.profiler)
-
-        # Get current order of functions
-        current_order = self.get_current_function_order()
-
-        # Check if a new function is added or if order has changed
-        if func_name not in self.profiled_functions or self.previous_order != current_order:
-            self.profiled_functions.add(func_name)
-            self.clear_screen()
-
-        # Update the previous order to the current one
-        self.previous_order = current_order
-
-        # Print the averaged stats
-        self.print_averaged_stats()
-
-    def clear_screen(self):
-        sys.stdout.write('\033[2J\033[H')  # Clear screen and move cursor to the top
-        sys.stdout.flush()
-
-    def get_current_function_order(self):
-        # Capture stats output to determine the current order of functions
-        stream = io.StringIO()
-        stats = pstats.Stats(self.profiler, stream=stream)
-        stats.sort_stats(pstats.SortKey.TIME)
-        stats.print_stats()
-
-        # Extract function names from the stats output
-        content = stream.getvalue().splitlines()[5:]  # Skip header lines
-        function_order = [line.split()[-1] for line in content if line.strip()]
-        return function_order
-
-    def print_averaged_stats(self):
-        # Prepare the output stream to capture stats
-        stream = io.StringIO()
-        stats = pstats.Stats(self.profiler, stream=stream)
-        stats.sort_stats(pstats.SortKey.TIME)
-
-        # Print the stats, but suppress the raw counts
-        stats.print_stats()
-
-        # Extract and process stats to average them
-        content = stream.getvalue().splitlines()
-        header = content[:5]  # Keep the header
-        data = content[5:]  # Data lines
-        if data:
-            # Update the total calls and times
-            avg_data = []
-
-            for line in data:
-                parts = line.split()
-                if len(parts) >= 6:
-                    ncalls = int(parts[0].replace('/', ''))  # Total calls
-                    tottime = float(parts[1])  # Total time
-                    percall = tottime / ncalls if ncalls > 0 else 0
-                    cumtime = float(parts[3])  # Cumulative time
-                    cumpercall = cumtime / ncalls if ncalls > 0 else 0
-
-                    # Format and add the line
-                    avg_data.append(
-                        f"{ncalls:>9} {tottime / self.calls:>9.3f} {percall:>9.3f} "
-                        f"{ncalls:>9} {cumtime / self.calls:>9.3f} {cumpercall:>9.3f} {line[90:]}"
-                    )
-
-            # Move cursor to the start of the line before printing
-            sys.stdout.write('\033[F' * (len(header) + len(avg_data)))  # Move cursor up to overwrite
-
-            # Print the header and averaged data
-            sys.stdout.write('\n'.join(header + avg_data) + '\n')
-            sys.stdout.flush()
+def load_texture_from_zip(zip_path, filename):
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        with zip_ref.open(filename) as image_file:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+                temp_file.write(image_file.read())
+                temp_file_path = temp_file.name
+        texture = ray.load_texture(temp_file_path)
+        os.remove(temp_file_path)
+        return texture
 
 def rounded(d):
     sign = 1 if (d >= 0) else -1
@@ -137,7 +62,7 @@ def get_pixels_per_frame(bpm, fps, time_signature, distance):
     total_frames = fps * total_time
     return (distance / total_frames) * (fps/60)
 
-class tja_parser:
+class TJAParser:
     def __init__(self, path):
         #Defined on startup
         self.folder_path = path
@@ -341,7 +266,7 @@ class tja_parser:
                         if len(play_note_list) > 1:
                             prev_note = play_note_list[-2]
                             if prev_note['note'] in {'1', '2'}:
-                                if note_ms - prev_note['ms'] < (ms_per_measure/8):
+                                if note_ms - prev_note['ms'] <= (ms_per_measure/8) - 1:
                                     prev_note['se_note'] = se_notes[prev_note['note']][1]
                                 else:
                                     prev_note['se_note'] = se_notes[prev_note['note']][0]
@@ -398,6 +323,14 @@ class Animation:
                 delay=self.params.get('delay', 0.0),
                 ease_in=self.params.get('ease_in', None),
                 ease_out=self.params.get('ease_out', None))
+            if self.params.get('reverse', None) is not None and current_ms - self.start_ms >= self.duration + self.params.get('delay', 0.0):
+                self.fade(current_ms,
+                    self.duration,
+                    final_opacity=self.params.get('initial_opacity', 1.0),
+                    initial_opacity=self.params.get('final_opacity', 0.0),
+                    delay=self.params.get('delay', 0.0) + self.duration + self.params.get('reverse'),
+                    ease_in=self.params.get('ease_in', None),
+                    ease_out=self.params.get('ease_out', None))
         elif self.type == 'move':
             self.move(current_ms,
                 self.duration,
@@ -417,6 +350,12 @@ class Animation:
                 initial_size=self.params.get('initial_size', 1.0),
                 final_size=self.params.get('final_size', 1.0),
                 delay=self.params.get('delay', 0.0))
+            if self.params.get('reverse', None) is not None and current_ms - self.start_ms >= self.duration + self.params.get('delay', 0.0):
+                self.texture_resize(current_ms,
+                    self.duration,
+                    final_size=self.params.get('initial_size', 1.0),
+                    initial_size=self.params.get('final_size', 1.0),
+                    delay=self.params.get('delay', 0.0) + self.duration)
 
     def fade(self, current_ms, duration, initial_opacity, final_opacity, delay, ease_in, ease_out):
         def ease_out_progress(progress, ease):

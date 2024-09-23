@@ -14,152 +14,152 @@ class GameScreen:
         self.current_ms = 0
 
     def load_textures(self):
-        folder_path = 'Graphics\\lumendata\\enso_system\\common\\'
-        self.texture_judge_circle = ray.load_texture(folder_path + 'lane_hit_img00017.png')
+        zip_file = 'Graphics\\lumendata\\enso_system\\common.zip'
+        self.texture_judge_circle = load_texture_from_zip(zip_file, 'lane_hit_img00017.png')
 
-        self.image_lane = ray.load_image(folder_path + 'lane_img00000.png')
+        self.image_lane = load_image_from_zip(zip_file, 'lane_img00000.png')
         ray.image_resize(self.image_lane, 948, 176)
         self.texture_lane = ray.load_texture_from_image(self.image_lane)
 
-        self.texture_lane_cover = ray.load_texture(folder_path + 'lane_obi_img00000.png')
-        self.texture_score_cover = ray.load_texture(folder_path + 'lane_obi_img00003.png')
+        self.texture_lane_cover = load_texture_from_zip(zip_file, 'lane_obi_img00000.png')
+        self.texture_score_cover = load_texture_from_zip(zip_file, 'lane_obi_img00003.png')
 
-        self.texture_don = [ray.load_texture(folder_path + 'onp_don_img00000.png'),
-                            ray.load_texture(folder_path + 'onp_don_img00001.png')]
-        self.texture_kat = [ray.load_texture(folder_path + 'onp_katsu_img00000.png'),
-                            ray.load_texture(folder_path + 'onp_katsu_img00001.png')]
+        self.texture_don = [load_texture_from_zip(zip_file, 'onp_don_img00000.png'),
+                            load_texture_from_zip(zip_file, 'onp_don_img00001.png')]
+        self.texture_kat = [load_texture_from_zip(zip_file, 'onp_katsu_img00000.png'),
+                            load_texture_from_zip(zip_file, 'onp_katsu_img00001.png')]
 
-        self.texture_dai_don = [ray.load_texture(folder_path + 'onp_don_dai_img00000.png'),
-                                ray.load_texture(folder_path + 'onp_don_dai_img00001.png')]
-        self.texture_dai_kat = [ray.load_texture(folder_path + 'onp_katsu_dai_img00000.png'),
-                                ray.load_texture(folder_path + 'onp_katsu_dai_img00001.png')]
+        self.texture_dai_don = [load_texture_from_zip(zip_file, 'onp_don_dai_img00000.png'),
+                                load_texture_from_zip(zip_file, 'onp_don_dai_img00001.png')]
+        self.texture_dai_kat = [load_texture_from_zip(zip_file, 'onp_katsu_dai_img00000.png'),
+                                load_texture_from_zip(zip_file, 'onp_katsu_dai_img00001.png')]
 
-        self.texture_balloon_head = [ray.load_texture(folder_path + 'onp_fusen_img00001.png'),
-                                     ray.load_texture(folder_path + 'onp_fusen_img00002.png')]
-        self.texture_balloon_tail = [ray.load_texture(folder_path + 'onp_fusen_img00000.png'),
-                                     ray.load_texture(folder_path + 'onp_fusen_img00000.png')]
+        self.texture_balloon_head = [load_texture_from_zip(zip_file, 'onp_fusen_img00001.png'),
+                                     load_texture_from_zip(zip_file, 'onp_fusen_img00002.png')]
+        self.texture_balloon_tail = [load_texture_from_zip(zip_file, 'onp_fusen_img00000.png'),
+                                     load_texture_from_zip(zip_file, 'onp_fusen_img00000.png')]
 
-        self.texture_drumroll_head = [ray.load_texture(folder_path + 'onp_renda_img00002.png'),
-                                      ray.load_texture(folder_path + 'onp_renda_img00003.png')]
-        self.texture_drumroll_body = [ray.load_texture(folder_path + 'onp_renda_img00000.png'),
-                                      ray.load_texture(folder_path + 'onp_renda_img00000.png')]
-        self.texture_drumroll_tail = [ray.load_texture(folder_path + 'onp_renda_img00001.png'),
-                                      ray.load_texture(folder_path + 'onp_renda_img00001.png')]
-        self.texture_dai_drumroll_head = [ray.load_texture(folder_path + 'onp_renda_dai_img00002.png'),
-                                          ray.load_texture(folder_path + 'onp_renda_dai_img00003.png')]
-        self.texture_dai_drumroll_body = [ray.load_texture(folder_path + 'onp_renda_dai_img00000.png'),
-                                          ray.load_texture(folder_path + 'onp_renda_dai_img00000.png')]
-        self.texture_dai_drumroll_tail = [ray.load_texture(folder_path + 'onp_renda_dai_img00001.png'),
-                                          ray.load_texture(folder_path + 'onp_renda_dai_img00001.png')]
-        self.texture_drumroll_count = ray.load_texture(folder_path + 'renda_num_img00000.png')
+        self.texture_drumroll_head = [load_texture_from_zip(zip_file, 'onp_renda_img00002.png'),
+                                      load_texture_from_zip(zip_file, 'onp_renda_img00003.png')]
+        self.texture_drumroll_body = [load_texture_from_zip(zip_file, 'onp_renda_img00000.png'),
+                                      load_texture_from_zip(zip_file, 'onp_renda_img00000.png')]
+        self.texture_drumroll_tail = [load_texture_from_zip(zip_file, 'onp_renda_img00001.png'),
+                                      load_texture_from_zip(zip_file, 'onp_renda_img00001.png')]
+        self.texture_dai_drumroll_head = [load_texture_from_zip(zip_file, 'onp_renda_dai_img00002.png'),
+                                          load_texture_from_zip(zip_file, 'onp_renda_dai_img00003.png')]
+        self.texture_dai_drumroll_body = [load_texture_from_zip(zip_file, 'onp_renda_dai_img00000.png'),
+                                          load_texture_from_zip(zip_file, 'onp_renda_dai_img00000.png')]
+        self.texture_dai_drumroll_tail = [load_texture_from_zip(zip_file, 'onp_renda_dai_img00001.png'),
+                                          load_texture_from_zip(zip_file, 'onp_renda_dai_img00001.png')]
+        self.texture_drumroll_count = load_texture_from_zip(zip_file, 'renda_num_img00000.png')
         self.texture_drumroll_number = []
         for i in range(1, 11):
             filename = f'renda_num_img{str(i).zfill(5)}.png'
-            self.texture_drumroll_number.append(ray.load_texture(folder_path + filename))
+            self.texture_drumroll_number.append(load_texture_from_zip(zip_file, filename))
 
 
-        self.texture_barline = ray.load_texture(folder_path + 'lane_syousetsu_img00000.png')
+        self.texture_barline = load_texture_from_zip(zip_file, 'lane_syousetsu_img00000.png')
 
-        self.texture_good = ray.load_texture(folder_path + 'lane_hit_effect_img00009.png')
-        self.texture_good_hit_center = ray.load_texture(folder_path + 'lane_hit_img00019.png')
-        self.texture_good_hit_center_big = ray.load_texture(folder_path + 'lane_hit_img00021.png')
-        self.texture_good_hit_effect = [ray.load_texture(folder_path + 'lane_hit_effect_img00005.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00006.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00007.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00008.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00008.png')]
-        self.texture_good_hit_effect_big = [ray.load_texture(folder_path + 'lane_hit_effect_img00011.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00012.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00013.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00014.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00015.png')]
+        self.texture_good = load_texture_from_zip(zip_file, 'lane_hit_effect_img00009.png')
+        self.texture_good_hit_center = load_texture_from_zip(zip_file, 'lane_hit_img00019.png')
+        self.texture_good_hit_center_big = load_texture_from_zip(zip_file, 'lane_hit_img00021.png')
+        self.texture_good_hit_effect = [load_texture_from_zip(zip_file, 'lane_hit_effect_img00005.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00006.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00007.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00008.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00008.png')]
+        self.texture_good_hit_effect_big = [load_texture_from_zip(zip_file, 'lane_hit_effect_img00011.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00012.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00013.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00014.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00015.png')]
 
-        self.texture_ok = ray.load_texture(folder_path + 'lane_hit_effect_img00004.png')
-        self.texture_ok_hit_center = ray.load_texture(folder_path + 'lane_hit_img00018.png')
-        self.texture_ok_hit_center_big = ray.load_texture(folder_path + 'lane_hit_img00020.png')
-        self.texture_ok_hit_effect = [ray.load_texture(folder_path + 'lane_hit_effect_img00000.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00001.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00002.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00003.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00003.png')]
-        self.texture_ok_hit_effect_big = [ray.load_texture(folder_path + 'lane_hit_effect_img00016.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00017.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00018.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00019.png'),
-                                        ray.load_texture(folder_path + 'lane_hit_effect_img00020.png')]
+        self.texture_ok = load_texture_from_zip(zip_file, 'lane_hit_effect_img00004.png')
+        self.texture_ok_hit_center = load_texture_from_zip(zip_file, 'lane_hit_img00018.png')
+        self.texture_ok_hit_center_big = load_texture_from_zip(zip_file, 'lane_hit_img00020.png')
+        self.texture_ok_hit_effect = [load_texture_from_zip(zip_file, 'lane_hit_effect_img00000.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00001.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00002.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00003.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00003.png')]
+        self.texture_ok_hit_effect_big = [load_texture_from_zip(zip_file, 'lane_hit_effect_img00016.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00017.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00018.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00019.png'),
+        load_texture_from_zip(zip_file, 'lane_hit_effect_img00020.png')]
 
-        self.texture_bad = ray.load_texture(folder_path + 'lane_hit_effect_img00010.png')
+        self.texture_bad = load_texture_from_zip(zip_file, 'lane_hit_effect_img00010.png')
 
-        self.image_lane_effect_good = ray.load_image(folder_path + 'lane_hit_img00007.png')
+        self.image_lane_effect_good = load_image_from_zip(zip_file, 'lane_hit_img00007.png')
         ray.image_resize(self.image_lane_effect_good, 951, 130)
-        self.image_lane_effect_don = ray.load_image(folder_path + 'lane_hit_img00005.png')
+        self.image_lane_effect_don = load_image_from_zip(zip_file, 'lane_hit_img00005.png')
         ray.image_resize(self.image_lane_effect_don, 951, 130)
-        self.image_lane_effect_kat = ray.load_image(folder_path + 'lane_hit_img00006.png')
+        self.image_lane_effect_kat = load_image_from_zip(zip_file, 'lane_hit_img00006.png')
         ray.image_resize(self.image_lane_effect_kat, 951, 130)
         self.texture_lane_effect_good = ray.load_texture_from_image(self.image_lane_effect_good)
         self.texture_lane_effect_don = ray.load_texture_from_image(self.image_lane_effect_don)
         self.texture_lane_effect_kat = ray.load_texture_from_image(self.image_lane_effect_kat)
 
-        self.texture_drum = ray.load_texture(folder_path + 'lane_obi_img00014.png')
-        self.texture_don_R = ray.load_texture(folder_path + 'lane_obi_img00015.png')
-        self.texture_don_L = ray.load_texture(folder_path + 'lane_obi_img00016.png')
-        self.texture_kat_R = ray.load_texture(folder_path + 'lane_obi_img00017.png')
-        self.texture_kat_L = ray.load_texture(folder_path + 'lane_obi_img00018.png')
+        self.texture_drum = load_texture_from_zip(zip_file, 'lane_obi_img00014.png')
+        self.texture_don_R = load_texture_from_zip(zip_file, 'lane_obi_img00015.png')
+        self.texture_don_L = load_texture_from_zip(zip_file, 'lane_obi_img00016.png')
+        self.texture_kat_R = load_texture_from_zip(zip_file, 'lane_obi_img00017.png')
+        self.texture_kat_L = load_texture_from_zip(zip_file, 'lane_obi_img00018.png')
 
-        self.texture_1p_emblem = ray.load_texture(folder_path + 'lane_obi_img00019.png')
-        self.texture_difficulty = [ray.load_texture(folder_path + 'lane_obi_img00021.png'),
-                                   ray.load_texture(folder_path + 'lane_obi_img00022.png'),
-                                   ray.load_texture(folder_path + 'lane_obi_img00023.png'),
-                                   ray.load_texture(folder_path + 'lane_obi_img00024.png'),
-                                   ray.load_texture(folder_path + 'lane_obi_img00025.png'),
-                                   ray.load_texture(folder_path + 'lane_obi_img00025.png'),
-                                   ray.load_texture(folder_path + 'lane_obi_img00025.png')]
+        self.texture_1p_emblem = load_texture_from_zip(zip_file, 'lane_obi_img00019.png')
+        self.texture_difficulty = [load_texture_from_zip(zip_file, 'lane_obi_img00021.png'),
+        load_texture_from_zip(zip_file, 'lane_obi_img00022.png'),
+        load_texture_from_zip(zip_file, 'lane_obi_img00023.png'),
+        load_texture_from_zip(zip_file, 'lane_obi_img00024.png'),
+        load_texture_from_zip(zip_file, 'lane_obi_img00025.png'),
+        load_texture_from_zip(zip_file, 'lane_obi_img00025.png'),
+        load_texture_from_zip(zip_file, 'lane_obi_img00025.png')]
 
-        self.texture_combo_text = [ray.load_texture(folder_path + 'lane_obi_img00035.png'),
-                                   ray.load_texture(folder_path + 'lane_obi_img00046.png')]
+        self.texture_combo_text = [load_texture_from_zip(zip_file, 'lane_obi_img00035.png'),
+        load_texture_from_zip(zip_file, 'lane_obi_img00046.png')]
         self.texture_combo_numbers = []
         for i in range(36, 58):
             if i not in [46, 48]:
                 filename = f'lane_obi_img{str(i).zfill(5)}.png'
-                self.texture_combo_numbers.append(ray.load_texture(folder_path + filename))
-        self.texture_combo_glimmer = ray.load_texture(folder_path + 'lane_obi_img00048.png')
+                self.texture_combo_numbers.append(load_texture_from_zip(zip_file, filename))
+        self.texture_combo_glimmer = load_texture_from_zip(zip_file, 'lane_obi_img00048.png')
 
         self.texture_score_numbers = []
         for i in range(4, 14):
             filename = f'lane_obi_img{str(i).zfill(5)}.png'
-            self.texture_score_numbers.append(ray.load_texture(folder_path + filename))
+            self.texture_score_numbers.append(load_texture_from_zip(zip_file, filename))
 
         self.texture_se_moji = []
         for i in range(0, 17):
             filename = f'onp_moji_img{str(i).zfill(5)}.png'
             if i == 8:
                 filename = 'onp_renda_moji_img00001.png'
-            self.texture_se_moji.append(ray.load_texture(folder_path + filename))
+            self.texture_se_moji.append(load_texture_from_zip(zip_file, filename))
 
-        folder_path = 'Graphics\\lumendata\\enso_system\\base1p\\'
-        self.texture_balloon_speech_bubble_p1 = ray.load_texture(folder_path + 'action_fusen_1p_img00000.png')
-        self.texture_balloon = [ray.load_texture(folder_path + 'action_fusen_1p_img00011.png'),
-                                ray.load_texture(folder_path + 'action_fusen_1p_img00012.png'),
-                                ray.load_texture(folder_path + 'action_fusen_1p_img00013.png'),
-                                ray.load_texture(folder_path + 'action_fusen_1p_img00014.png'),
-                                ray.load_texture(folder_path + 'action_fusen_1p_img00015.png'),
-                                ray.load_texture(folder_path + 'action_fusen_1p_img00016.png'),
-                                ray.load_texture(folder_path + 'action_fusen_1p_img00017.png'),
-                                ray.load_texture(folder_path + 'action_fusen_1p_img00018.png')]
-        self.texture_balloon_number = [ray.load_texture(folder_path + 'action_fusen_1p_img00001.png'),
-                                       ray.load_texture(folder_path + 'action_fusen_1p_img00002.png'),
-                                       ray.load_texture(folder_path + 'action_fusen_1p_img00003.png'),
-                                       ray.load_texture(folder_path + 'action_fusen_1p_img00004.png'),
-                                       ray.load_texture(folder_path + 'action_fusen_1p_img00005.png'),
-                                       ray.load_texture(folder_path + 'action_fusen_1p_img00006.png'),
-                                       ray.load_texture(folder_path + 'action_fusen_1p_img00007.png'),
-                                       ray.load_texture(folder_path + 'action_fusen_1p_img00008.png'),
-                                       ray.load_texture(folder_path + 'action_fusen_1p_img00009.png'),
-                                       ray.load_texture(folder_path + 'action_fusen_1p_img00010.png')]
+        zip_file = 'Graphics\\lumendata\\enso_system\\base1p.zip'
+        self.texture_balloon_speech_bubble_p1 = load_texture_from_zip(zip_file, 'action_fusen_1p_img00000.png')
+        self.texture_balloon = [load_texture_from_zip(zip_file, 'action_fusen_1p_img00011.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00012.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00013.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00014.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00015.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00016.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00017.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00018.png')]
+        self.texture_balloon_number = [load_texture_from_zip(zip_file, 'action_fusen_1p_img00001.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00002.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00003.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00004.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00005.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00006.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00007.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00008.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00009.png'),
+        load_texture_from_zip(zip_file, 'action_fusen_1p_img00010.png')]
         self.texture_base_score_numbers = []
         for i in range(0, 10):
             filename = f'score_add_1p_img{str(i).zfill(5)}.png'
-            self.texture_base_score_numbers.append(ray.load_texture(folder_path + filename))
+            self.texture_base_score_numbers.append(load_texture_from_zip(zip_file, filename))
 
     def load_sounds(self):
         self.sound_don = ray.load_sound('Sounds\\inst_00_don.wav')
@@ -172,18 +172,18 @@ class GameScreen:
 
         #Map notes to textures
         self.note_type_dict = {'1': self.texture_don,
-                               '2': self.texture_kat,
-                               '3': self.texture_dai_don,
-                               '4': self.texture_dai_kat,
-                               '5': self.texture_drumroll_head,
-                               '6': self.texture_dai_drumroll_head,
-                               '7': self.texture_balloon_head,
-                               'drumroll_body': self.texture_drumroll_body,
-                               'drumroll_tail': self.texture_drumroll_tail,
-                               'dai_drumroll_body': self.texture_dai_drumroll_body,
-                               'dai_drumroll_tail': self.texture_dai_drumroll_tail,
-                               'balloon_tail': self.texture_balloon_tail}
-        self.tja = tja_parser(f'Songs\\{song}')
+        '2': self.texture_kat,
+        '3': self.texture_dai_don,
+        '4': self.texture_dai_kat,
+        '5': self.texture_drumroll_head,
+        '6': self.texture_dai_drumroll_head,
+        '7': self.texture_balloon_head,
+        'drumroll_body': self.texture_drumroll_body,
+        'drumroll_tail': self.texture_drumroll_tail,
+        'dai_drumroll_body': self.texture_dai_drumroll_body,
+        'dai_drumroll_tail': self.texture_dai_drumroll_tail,
+        'balloon_tail': self.texture_balloon_tail}
+        self.tja = TJAParser(f'Songs\\{song}')
         self.tja.get_metadata()
         self.tja.distance = self.width - self.judge_x
 
@@ -509,7 +509,6 @@ class Player:
         self.animation_manager(game_screen, self.base_score_list)
         self.score_manager(game_screen)
         self.key_manager(game_screen)
-        return None
 
     def draw_animation_list(self, game_screen, animation_list):
         for animation in animation_list:
