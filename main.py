@@ -42,20 +42,17 @@ def main():
         Screens.GAME: game_screen,
         #Screens.RESULT: result_screen
     }
-
-    #Drawing as a render texture causes some weird issue with the notes having an extra shadow, $50 bounty for whoever fixes it
     target = ray.load_render_texture(screen_width, screen_height)
     ray.set_texture_filter(target.texture, ray.TextureFilter.TEXTURE_FILTER_TRILINEAR)
+    #lmaooooooooooooo
+    ray.rl_set_blend_factors_separate(0x302, 0x303, 1, 0x303, 0x8006, 0x8006)
     start_song = False
     ray.set_exit_key(ray.KeyboardKey.KEY_A)
     while not ray.window_should_close():
 
         ray.begin_texture_mode(target)
+        ray.begin_blend_mode(ray.BlendMode.BLEND_CUSTOM_SEPARATE)
         screen = screen_mapping[current_screen]
-        if screen == title_screen:
-            ray.clear_background(ray.BLACK)
-        else:
-            ray.clear_background(ray.WHITE)
 
         if ray.is_key_pressed(ray.KeyboardKey.KEY_F11):
             ray.toggle_fullscreen()
@@ -68,13 +65,19 @@ def main():
             start_song = True
         next_screen = screen.update()
         screen.draw()
+        if screen == title_screen:
+            ray.clear_background(ray.BLACK)
+        else:
+            ray.clear_background(ray.WHITE)
 
         if next_screen is not None:
             current_screen = next_screen
 
         ray.draw_fps(20, 20)
+        ray.end_blend_mode()
         ray.end_texture_mode()
         ray.begin_drawing()
+        ray.clear_background(ray.WHITE)
         ray.draw_texture_pro(target.texture, ray.Rectangle(0, 0, target.texture.width, -target.texture.height), ray.Rectangle(0, 0, ray.get_render_width(), ray.get_render_height()), ray.Vector2(0,0), 0, ray.WHITE)
         ray.end_drawing()
     ray.close_window()
