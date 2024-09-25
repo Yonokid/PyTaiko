@@ -6,23 +6,25 @@ This is a TJA player / Taiko simulator written in python and uses the [raylib](h
 
 ## Installation
 
-Idk. We'll see what happens when I get there
+Download for OS of choice on releases page
 
+How to run:
+Windows:
 ```bash
-  This is where the build will be
+  PyTaiko.exe {"Song Name"} {difficulty number 0-4}
+```
+MacOS/Linux:
+```bash
+  PyTaiko.bin {"Song Name"} {difficulty number 0-4}
 ```
     
 ## Roadmap
 
 - Add Kusudama notes
 
-- Draw drumrolls to the correct size
+- add basic song select
 
-- Add gogotime effect
-
-- Add gauge
-
-- Add background
+- add basic results screen
 
 
 ## Known Issues
