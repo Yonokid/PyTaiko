@@ -1,6 +1,4 @@
 import pyray as ray
-import numpy as np
-import cv2
 import os
 import random
 from global_funcs import Animation, VideoPlayer, get_current_ms, load_texture_from_zip
@@ -9,46 +7,45 @@ class TitleScreen:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.op_videos = []
+        self.op_video_list = []
         for root, folder, files in os.walk('Videos\\op_videos'):
             for file in files:
                 if file.endswith('.mp4'):
-                    self.op_videos.append(VideoPlayer(root + '\\' + file))
-        self.current_op_video = random.choice(self.op_videos)
-        self.attract_videos = []
+                    self.op_video_list.append(VideoPlayer(root + '\\' + file))
+        self.op_video = random.choice(self.op_video_list)
+        self.attract_video_list = []
         for root, folder, files in os.walk('Videos\\attract_videos'):
             for file in files:
                 if file.endswith('.mp4'):
-                    self.attract_videos.append(VideoPlayer(root + '\\' + file))
-        self.current_attract_video = None
-        self.warning = None
-        self.scene = None
+                    self.attract_video_list.append(VideoPlayer(root + '\\' + file))
+        self.attract_video = random.choice(self.attract_video_list)
+        self.scene = 'Opening Video'
         self.load_textures()
+        self.warning_board = WarningBoard(get_current_ms(), self)
 
     def load_textures(self):
         zip_file = 'Graphics\\lumendata\\attract\\keikoku.zip'
         self.texture_bg = load_texture_from_zip(zip_file, 'keikoku_img00000.png')
         self.texture_warning = load_texture_from_zip(zip_file, 'keikoku_img00001.png')
         self.texture_warning_ch1 = [load_texture_from_zip(zip_file, 'keikoku_img00004.png'),
-                                    load_texture_from_zip(zip_file, 'keikoku_img00009.png'),
-                                    load_texture_from_zip(zip_file, 'keikoku_img00016.png')]
+        load_texture_from_zip(zip_file, 'keikoku_img00009.png'),
+        load_texture_from_zip(zip_file, 'keikoku_img00016.png')]
         self.texture_warning_ch1_base = load_texture_from_zip(zip_file, 'keikoku_img00002.png')
         self.texture_warning_ch2 = [load_texture_from_zip(zip_file, 'keikoku_img00005.png'),
-                                    load_texture_from_zip(zip_file, 'keikoku_img00006.png'),
-                                    load_texture_from_zip(zip_file, 'keikoku_img00007.png'),
-                                    load_texture_from_zip(zip_file, 'keikoku_img00008.png'),
-                                    load_texture_from_zip(zip_file, 'keikoku_img00010.png'),
-                                    load_texture_from_zip(zip_file, 'keikoku_img00011.png'),
-                                    load_texture_from_zip(zip_file, 'keikoku_img00012.png'),
-                                    load_texture_from_zip(zip_file, 'keikoku_img00013.png'),
-                                    load_texture_from_zip(zip_file, 'keikoku_img00017.png')]
+        load_texture_from_zip(zip_file, 'keikoku_img00006.png'),
+        load_texture_from_zip(zip_file, 'keikoku_img00007.png'),
+        load_texture_from_zip(zip_file, 'keikoku_img00008.png'),
+        load_texture_from_zip(zip_file, 'keikoku_img00010.png'),
+        load_texture_from_zip(zip_file, 'keikoku_img00011.png'),
+        load_texture_from_zip(zip_file, 'keikoku_img00012.png'),
+        load_texture_from_zip(zip_file, 'keikoku_img00013.png'),
+        load_texture_from_zip(zip_file, 'keikoku_img00017.png')]
         self.texture_warning_ch2_base = load_texture_from_zip(zip_file, 'keikoku_img00003.png')
         self.texture_warning_bachi = load_texture_from_zip(zip_file, 'keikoku_img00019.png')
         self.texture_warning_bachi_hit = load_texture_from_zip(zip_file, 'keikoku_img00018.png')
 
         self.texture_warning_x_1 = load_texture_from_zip(zip_file, 'keikoku_img00014.png')
         self.texture_warning_x_2 = load_texture_from_zip(zip_file, 'keikoku_img00015.png')
-
 
         self.sound_bachi_swipe = ray.load_sound('Sounds\\title\\SE_ATTRACT_2.ogg')
         self.sound_bachi_hit = ray.load_sound('Sounds\\title\\SE_ATTRACT_3.ogg')
@@ -58,42 +55,37 @@ class TitleScreen:
         self.texture_black = load_texture_from_zip('Graphics\\lumendata\\attract\\movie.zip', 'movie_img00000.png')
 
     def scene_manager(self):
-        if self.current_op_video is not None:
-            self.scene = 'Opening Video'
-            self.current_op_video.update()
-            if all(self.current_op_video.is_finished):
-                self.current_op_video = None
-                self.warning = WarningBoard(get_current_ms(), self)
-        elif self.warning is not None:
-            self.scene = 'Warning Board'
-            self.warning.update(get_current_ms(), self)
-            if self.warning.is_finished:
-                self.warning = None
-                self.current_attract_video = random.choice(self.attract_videos)
-        elif self.current_attract_video is not None:
-            self.scene = 'Attract Video'
-            self.current_attract_video.update()
-            if all(self.current_attract_video.is_finished):
-                self.current_attract_video = None
-                self.current_op_video = random.choice(self.op_videos)
-
+        if self.scene == 'Opening Video':
+            self.op_video.update()
+            if all(self.op_video.is_finished):
+                self.scene = 'Warning Board'
+                self.warning_board = WarningBoard(get_current_ms(), self)
+        elif self.scene == 'Warning Board':
+            self.warning_board.update(get_current_ms(), self)
+            if self.warning_board.is_finished:
+                self.scene = 'Attract Video'
+                self.attract_video = random.choice(self.attract_video_list)
+        elif self.scene == 'Attract Video':
+            self.attract_video.update()
+            if all(self.attract_video.is_finished):
+                self.scene = 'Opening Video'
+                self.op_video = random.choice(self.op_video_list)
 
     def update(self):
         self.scene_manager()
         if ray.is_key_pressed(ray.KeyboardKey.KEY_ENTER):
             return "ENTRY"
-        return None
 
     def draw(self):
-        if self.current_op_video is not None:
-            self.current_op_video.draw()
-        elif self.warning is not None:
+        if self.scene == 'Opening Video':
+            self.op_video.draw()
+        elif self.scene == 'Warning Board':
             bg_source = ray.Rectangle(0, 0, self.texture_bg.width, self.texture_bg.height)
             bg_dest = ray.Rectangle(0, 0, self.width, self.height)
             ray.draw_texture_pro(self.texture_bg, bg_source, bg_dest, ray.Vector2(0,0), 0, ray.WHITE)
-            self.warning.draw(self)
-        elif self.current_attract_video is not None:
-            self.current_attract_video.draw()
+            self.warning_board.draw(self)
+        elif self.scene == 'Attract Video':
+            self.attract_video.draw()
 
         ray.draw_text(f"Scene: {self.scene}", 20, 40, 20, ray.BLUE)
 

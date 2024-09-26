@@ -2,6 +2,7 @@ import time
 import os
 import pyray as ray
 import cv2
+import math
 import zipfile
 import tempfile
 
@@ -29,12 +30,13 @@ def load_texture_from_zip(zip_path, filename):
         os.remove(temp_file_path)
         return texture
 
-def rounded(d):
-    sign = 1 if (d >= 0) else -1
-    d = abs(d)
-    n = int(d)
-    if (d - n >= 0.5): n += 1
-    return sign * n
+def rounded(num):
+    sign = 1 if (num >= 0) else -1
+    num = abs(num)
+    result = int(num)
+    if (num - result >= 0.5):
+        result += 1
+    return sign * result
 
 def get_current_ms():
     return rounded(time.time() * 1000)
@@ -56,11 +58,33 @@ def stripComments(code):
         index += 1
     return result
 
-def get_pixels_per_frame(bpm, fps, time_signature, distance):
-    beat_duration = fps / bpm
+def get_pixels_per_frame(bpm, time_signature, distance):
+    beat_duration = 60 / bpm
     total_time = time_signature * beat_duration
-    total_frames = fps * total_time
-    return (distance / total_frames) * (fps/60)
+    total_frames = 60 * total_time
+    return (distance / total_frames)
+
+def calculate_base_score(play_note_list):
+    total_notes = 0
+    balloon_num = 0
+    balloon_sec = 0
+    balloon_count = 0
+    drumroll_sec = 0
+    for i in range(len(play_note_list)):
+        note = play_note_list[i]
+        if i < len(play_note_list)-1:
+            next_note = play_note_list[i+1]
+        else:
+            next_note = play_note_list[len(play_note_list)-1]
+        if note.get('note') in {'1','2','3','4'}:
+            total_notes += 1
+        elif note.get('note') in {'5', '6'}:
+            drumroll_sec += (next_note.get('ms') - note.get('ms')) / 1000
+        elif note.get('note') in {'7', '9'}:
+            balloon_num += 1
+            balloon_count += next_note.get('balloon')
+    total_score = (1000000 - (balloon_count * 100) - (drumroll_sec * 1692.0079999994086)) / total_notes
+    return math.ceil(total_score / 10) * 10
 
 class TJAParser:
     def __init__(self, path):
@@ -87,7 +111,6 @@ class TJAParser:
         self.time_signature = 4/4
 
         self.distance = 0
-        self.fps = 60
         self.scroll_modifier = 1
         self.current_ms = 0
         self.barline_display = True
@@ -152,7 +175,8 @@ class TJAParser:
                     continue
                 item = int(item.split(':')[1])
                 self.course_data[diff_index+highest_diff].append(item)
-        return [self.title, self.title_ja, self.subtitle, self.subtitle_ja, self.bpm, self.wave, self.offset, self.demo_start, self.course_data]
+        return [self.title, self.title_ja, self.subtitle, self.subtitle_ja,
+            self.bpm, self.wave, self.offset, self.demo_start, self.course_data]
 
     def data_to_notes(self, diff):
         self.file_to_data()
@@ -180,15 +204,8 @@ class TJAParser:
                 bar = []
         return notes, self.course_data[diff][1]
 
-    def notes_to_position(self, diff):
-        play_note_list = deque()
-        bar_list = deque()
-        draw_note_list = deque()
-        notes, balloon = self.data_to_notes(diff)
-        index = 0
-        balloon_index = 0
-        drumroll_head = dict()
-        drumroll_tail = dict()
+    def get_se_note(self, play_note_list, ms_per_measure, note, note_ms):
+        #Someone please refactor this
         se_notes = {'1': [0, 1, 2],
             '2': [3, 4],
             '3': 5,
@@ -198,6 +215,39 @@ class TJAParser:
             '7': 9,
             '8': 10,
             '9': 11}
+        if len(play_note_list) > 1:
+            prev_note = play_note_list[-2]
+            if prev_note['note'] in {'1', '2'}:
+                if note_ms - prev_note['ms'] <= (ms_per_measure/8) - 1:
+                    prev_note['se_note'] = se_notes[prev_note['note']][1]
+                else:
+                    prev_note['se_note'] = se_notes[prev_note['note']][0]
+            else:
+                prev_note['se_note'] = se_notes[prev_note['note']]
+            if len(play_note_list) > 3:
+                if play_note_list[-4]['note'] == play_note_list[-3]['note'] == play_note_list[-2]['note'] == '1':
+                    if (play_note_list[-3]['ms'] - play_note_list[-4]['ms'] < (ms_per_measure/8)) and (play_note_list[-2]['ms'] - play_note_list[-3]['ms'] < (ms_per_measure/8)):
+                        if len(play_note_list) > 5:
+                            if (play_note_list[-4]['ms'] - play_note_list[-5]['ms'] >= (ms_per_measure/8)) and (play_note_list[-1]['ms'] - play_note_list[-2]['ms'] >= (ms_per_measure/8)):
+                                play_note_list[-3]['se_note'] = se_notes[play_note_list[-3]['note']][2]
+                        else:
+                            play_note_list[-3]['se_note'] = se_notes[play_note_list[-3]['note']][2]
+        else:
+            play_note_list[-1]['se_note'] = se_notes[note]
+        if play_note_list[-1]['note'] in {'1', '2'}:
+            play_note_list[-1]['se_note'] = se_notes[note][0]
+        else:
+            play_note_list[-1]['se_note'] = se_notes[note]
+
+    def notes_to_position(self, diff):
+        play_note_list = deque()
+        bar_list = deque()
+        draw_note_list = deque()
+        notes, balloon = self.data_to_notes(diff)
+        index = 0
+        balloon_index = 0
+        drumroll_head = dict()
+        drumroll_tail = dict()
         for bar in notes:
             #Length of the bar is determined by number of notes excluding commands
             bar_length = sum(len(part) for part in bar if '#' not in part)
@@ -239,8 +289,8 @@ class TJAParser:
                 ms_per_measure = 60000 * (self.time_signature*4) / self.bpm
 
                 #Determines how quickly the notes need to move across the screen to reach the judgment circle in time
-                pixels_per_frame = get_pixels_per_frame(self.bpm * self.time_signature * self.scroll_modifier, self.fps, self.time_signature*4, self.distance)
-                pixels_per_ms = pixels_per_frame / (1000 / self.fps)
+                pixels_per_frame = get_pixels_per_frame(self.bpm * self.time_signature * self.scroll_modifier, self.time_signature*4, self.distance)
+                pixels_per_ms = pixels_per_frame / (1000 / 60)
 
                 bar_ms = self.current_ms
                 load_ms = bar_ms - (self.distance / pixels_per_ms)
@@ -261,32 +311,7 @@ class TJAParser:
                     #Do not add blank notes otherwise lag
                     if note != '0':
                         play_note_list.append({'note': note, 'ms': note_ms, 'load_ms': load_ms, 'ppf': pixels_per_frame, 'index': index})
-
-                        ### This needs to be moved to its own function later
-                        if len(play_note_list) > 1:
-                            prev_note = play_note_list[-2]
-                            if prev_note['note'] in {'1', '2'}:
-                                if note_ms - prev_note['ms'] <= (ms_per_measure/8) - 1:
-                                    prev_note['se_note'] = se_notes[prev_note['note']][1]
-                                else:
-                                    prev_note['se_note'] = se_notes[prev_note['note']][0]
-                            else:
-                                prev_note['se_note'] = se_notes[prev_note['note']]
-                            if len(play_note_list) > 3:
-                                if play_note_list[-4]['note'] == play_note_list[-3]['note'] == play_note_list[-2]['note'] == '1':
-                                    if (play_note_list[-3]['ms'] - play_note_list[-4]['ms'] < (ms_per_measure/8)) and (play_note_list[-2]['ms'] - play_note_list[-3]['ms'] < (ms_per_measure/8)):
-                                        if len(play_note_list) > 5:
-                                            if (play_note_list[-4]['ms'] - play_note_list[-5]['ms'] >= (ms_per_measure/8)) and (play_note_list[-1]['ms'] - play_note_list[-2]['ms'] >= (ms_per_measure/8)):
-                                                play_note_list[-3]['se_note'] = se_notes[play_note_list[-3]['note']][2]
-                                        else:
-                                            play_note_list[-3]['se_note'] = se_notes[play_note_list[-3]['note']][2]
-                        else:
-                            play_note_list[-1]['se_note'] = se_notes[note]
-                        if play_note_list[-1]['note'] in {'1', '2'}:
-                            play_note_list[-1]['se_note'] = se_notes[note][0]
-                        else:
-                            play_note_list[-1]['se_note'] = se_notes[note]
-
+                        self.get_se_note(play_note_list, ms_per_measure, note, note_ms)
                         index += 1
                     if note in {'5', '6', '8'}:
                         play_note_list[-1]['color'] = 255
@@ -305,6 +330,7 @@ class TJAParser:
         draw_note_list = deque(sorted(play_note_list, key=lambda d: d['load_ms']))
         bar_list = deque(sorted(bar_list, key=lambda d: d['load_ms']))
         return play_note_list, draw_note_list, bar_list
+
 class Animation:
     def __init__(self, current_ms, duration, type):
         self.type = type
@@ -394,7 +420,6 @@ class Animation:
 
         current_opacity = initial_opacity + (final_opacity - initial_opacity) * progress
         self.attribute = current_opacity
-
     def move(self, current_ms, duration, total_distance, start_position, delay):
         elapsed_time = current_ms - self.start_ms
         if elapsed_time < delay:
@@ -407,7 +432,6 @@ class Animation:
         else:
             self.attribute = start_position + total_distance
             self.is_finished = True
-
     def texture_change(self, current_ms, duration, textures):
         elapsed_time = current_ms - self.start_ms
         if elapsed_time <= duration:
@@ -478,16 +502,6 @@ class VideoPlayer:
         print(len(self.frames), total_frames)
 
     def convert_frames(self):
-        '''
-        if ray.file_exists(path[:-4] + '.pkl'):
-            self.object_file = path[:-4] + '.pkl'
-            with open(self.object_file, 'rb') as f:
-                self.frames = pickle.load(f)
-            print(f"Loaded {path[:-4] + '.pkl'}")
-        else:
-            self.object_file = None
-        if self.object_file is None:
-        '''
         if not self.cap.isOpened():
             raise ValueError("Error: Could not open video file.")
 
@@ -507,36 +521,41 @@ class VideoPlayer:
 
         self.cap.release()
         print(f"Extracted {len(self.frames)} frames.")
-        '''
-        with open(path[:-4] + '.pkl', 'wb') as f:
-            pickle.dump(self.frames, f)
-        '''
         self.start_ms = get_current_ms()
 
-    def update(self):
+    def check_for_start(self):
         if self.start_ms is None:
             self.start_ms = get_current_ms()
             ray.play_music_stream(self.audio)
         if self.frames == []:
             self.convert_frames()
+
+    def audio_manager(self):
         ray.update_music_stream(self.audio)
         time_played = ray.get_music_time_played(self.audio) / ray.get_music_time_length(self.audio)
-        if time_played > 0.95:
+        ending_lenience = 0.95
+        if time_played > ending_lenience:
             self.is_finished[1] = True
+
+    def update(self):
+        self.check_for_start()
+        self.audio_manager()
 
         if self.frame_index == len(self.frames)-1:
             self.is_finished[0] = True
             return
-        timestamp, frame = self.frames[self.frame_index][0], self.frames[self.frame_index][1]
 
-        if self.start_ms is not None:
-            elapsed_time = get_current_ms() - self.start_ms
-            if elapsed_time >= timestamp:
-                self.current_frame = ray.load_texture_from_image(frame)
-                if self.last_frame != self.current_frame and self.last_frame is not None:
-                    ray.unload_texture(self.last_frame)
-                self.frame_index += 1
-                self.last_frame = self.current_frame
+        if self.start_ms is None:
+            return
+
+        timestamp, frame = self.frames[self.frame_index][0], self.frames[self.frame_index][1]
+        elapsed_time = get_current_ms() - self.start_ms
+        if elapsed_time >= timestamp:
+            self.current_frame = ray.load_texture_from_image(frame)
+            if self.last_frame != self.current_frame and self.last_frame is not None:
+                ray.unload_texture(self.last_frame)
+            self.frame_index += 1
+            self.last_frame = self.current_frame
 
     def draw(self):
         if self.current_frame is not None:

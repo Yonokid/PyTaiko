@@ -25,32 +25,32 @@ class GameScreen:
         self.texture_score_cover = load_texture_from_zip(zip_file, 'lane_obi_img00003.png')
 
         self.texture_don = [load_texture_from_zip(zip_file, 'onp_don_img00000.png'),
-                            load_texture_from_zip(zip_file, 'onp_don_img00001.png')]
+        load_texture_from_zip(zip_file, 'onp_don_img00001.png')]
         self.texture_kat = [load_texture_from_zip(zip_file, 'onp_katsu_img00000.png'),
-                            load_texture_from_zip(zip_file, 'onp_katsu_img00001.png')]
+        load_texture_from_zip(zip_file, 'onp_katsu_img00001.png')]
 
         self.texture_dai_don = [load_texture_from_zip(zip_file, 'onp_don_dai_img00000.png'),
-                                load_texture_from_zip(zip_file, 'onp_don_dai_img00001.png')]
+        load_texture_from_zip(zip_file, 'onp_don_dai_img00001.png')]
         self.texture_dai_kat = [load_texture_from_zip(zip_file, 'onp_katsu_dai_img00000.png'),
-                                load_texture_from_zip(zip_file, 'onp_katsu_dai_img00001.png')]
+        load_texture_from_zip(zip_file, 'onp_katsu_dai_img00001.png')]
 
         self.texture_balloon_head = [load_texture_from_zip(zip_file, 'onp_fusen_img00001.png'),
-                                     load_texture_from_zip(zip_file, 'onp_fusen_img00002.png')]
+        load_texture_from_zip(zip_file, 'onp_fusen_img00002.png')]
         self.texture_balloon_tail = [load_texture_from_zip(zip_file, 'onp_fusen_img00000.png'),
-                                     load_texture_from_zip(zip_file, 'onp_fusen_img00000.png')]
+        load_texture_from_zip(zip_file, 'onp_fusen_img00000.png')]
 
         self.texture_drumroll_head = [load_texture_from_zip(zip_file, 'onp_renda_img00002.png'),
-                                      load_texture_from_zip(zip_file, 'onp_renda_img00003.png')]
+        load_texture_from_zip(zip_file, 'onp_renda_img00003.png')]
         self.texture_drumroll_body = [load_texture_from_zip(zip_file, 'onp_renda_img00000.png'),
-                                      load_texture_from_zip(zip_file, 'onp_renda_img00000.png')]
+        load_texture_from_zip(zip_file, 'onp_renda_img00000.png')]
         self.texture_drumroll_tail = [load_texture_from_zip(zip_file, 'onp_renda_img00001.png'),
-                                      load_texture_from_zip(zip_file, 'onp_renda_img00001.png')]
+        load_texture_from_zip(zip_file, 'onp_renda_img00001.png')]
         self.texture_dai_drumroll_head = [load_texture_from_zip(zip_file, 'onp_renda_dai_img00002.png'),
-                                          load_texture_from_zip(zip_file, 'onp_renda_dai_img00003.png')]
+        load_texture_from_zip(zip_file, 'onp_renda_dai_img00003.png')]
         self.texture_dai_drumroll_body = [load_texture_from_zip(zip_file, 'onp_renda_dai_img00000.png'),
-                                          load_texture_from_zip(zip_file, 'onp_renda_dai_img00000.png')]
+        load_texture_from_zip(zip_file, 'onp_renda_dai_img00000.png')]
         self.texture_dai_drumroll_tail = [load_texture_from_zip(zip_file, 'onp_renda_dai_img00001.png'),
-                                          load_texture_from_zip(zip_file, 'onp_renda_dai_img00001.png')]
+        load_texture_from_zip(zip_file, 'onp_renda_dai_img00001.png')]
         self.texture_drumroll_count = load_texture_from_zip(zip_file, 'renda_num_img00000.png')
         self.texture_drumroll_number = []
         for i in range(1, 11):
@@ -183,6 +183,7 @@ class GameScreen:
         'dai_drumroll_body': self.texture_dai_drumroll_body,
         'dai_drumroll_tail': self.texture_dai_drumroll_tail,
         'balloon_tail': self.texture_balloon_tail}
+
         self.tja = TJAParser(f'Songs\\{song}')
         self.tja.get_metadata()
         self.tja.distance = self.width - self.judge_x
@@ -210,7 +211,7 @@ class Player:
         self.difficulty = difficulty
 
         self.play_note_list, self.draw_note_list, self.draw_bar_list = game_screen.tja.notes_to_position(self.difficulty)
-        self.base_score = self.calculate_base_score()
+        self.base_score = calculate_base_score(self.play_note_list)
 
         self.judge_offset = 0
 
@@ -247,49 +248,64 @@ class Player:
         self.score_list = []
         self.base_score_list = []
 
-    def calculate_base_score(self):
-        total_notes = 0
-        balloon_num = 0
-        balloon_sec = 0
-        balloon_count = 0
-        drumroll_sec = 0
-        for i in range(len(self.play_note_list)):
-            note = self.play_note_list[i]
-            if i < len(self.play_note_list)-1:
-                next_note = self.play_note_list[i+1]
-            else:
-                next_note = self.play_note_list[len(self.play_note_list)-1]
-            if note.get('note') in {'1','2','3','4'}:
-                total_notes += 1
-            elif note.get('note') in {'5', '6'}:
-                drumroll_sec += (next_note.get('ms') - note.get('ms')) / 1000
-            elif note.get('note') in {'7', '9'}:
-                balloon_num += 1
-                balloon_count += next_note.get('balloon')
-        total_score = (1000000 - (balloon_count * 100) - (drumroll_sec * 1692.0079999994086)) / total_notes
-        return math.ceil(total_score / 10) * 10
-
     def get_position(self, game_screen, ms, pixels_per_frame):
         return int(game_screen.width + pixels_per_frame * 60 / 1000 * (ms - game_screen.current_ms + self.judge_offset) - 64)
 
     def animation_manager(self, game_screen, animation_list):
-        if len(animation_list) != 0:
-            for i in range(len(animation_list)-1, -1, -1):
-                animation = animation_list[i]
-                animation.update(game_screen.current_ms)
-                if animation.is_finished:
-                    animation_list.pop(i)
+        if len(animation_list) <= 0:
+            return
+        for i in range(len(animation_list)-1, -1, -1):
+            animation = animation_list[i]
+            animation.update(game_screen.current_ms)
+            if animation.is_finished:
+                animation_list.pop(i)
 
-    def note_manager(self, game_screen):
+    def bar_manager(self, game_screen):
         #Add bar to current_bars list if it is ready to be shown on screen
         if len(self.draw_bar_list) > 0 and game_screen.current_ms > self.draw_bar_list[0]['load_ms']:
             self.current_bars.append(self.draw_bar_list.popleft())
 
+        #If a bar is off screen, remove it
+        if len(self.current_bars) <= 0:
+            return
+
+        for i in range(len(self.current_bars)-1, -1, -1):
+            bar_ms, pixels_per_frame = self.current_bars[i]['ms'], self.current_bars[i]['ppf']
+            position = self.get_position(game_screen, bar_ms, pixels_per_frame)
+            if position < game_screen.judge_x + 650:
+                self.current_bars.pop(i)
+
+    def play_note_manager(self, game_screen):
         #Add note to current_notes list if it is ready to be shown on screen
         if len(self.play_note_list) > 0 and game_screen.current_ms + 1000 >= self.play_note_list[0]['load_ms']:
             self.current_notes.append(self.play_note_list.popleft())
             if len(self.play_note_list) > 0 and self.play_note_list[0]['note'] == '8':
                 self.current_notes.append(self.play_note_list.popleft())
+
+        #if a note was not hit within the window, remove it
+        if len(self.current_notes) == 0:
+            return
+
+        note = self.current_notes[0]
+        if note['ms'] + self.timing_bad < game_screen.current_ms:
+            if note['note'] in {'1', '2', '3', '4'}:
+                self.combo = 0
+                self.bad_count += 1
+            self.current_notes.popleft()
+        elif (note['ms'] <= game_screen.current_ms):
+            if note['note'] == '5':
+                self.is_drumroll = True
+                self.drumroll_big = 0
+            elif note['note'] == '6':
+                self.is_drumroll = True
+                self.drumroll_big = 2
+            elif note['note'] == '7':
+                self.is_balloon = True
+            elif note['note'] == '8' and (self.is_drumroll or self.is_balloon):
+                self.is_drumroll = False
+                self.is_balloon = False
+
+    def draw_note_manager(self, game_screen):
         if len(self.draw_note_list) > 0 and game_screen.current_ms + 1000 >= self.draw_note_list[0]['load_ms']:
             if self.draw_note_list[0]['note'] in {'5','6','7','9'}:
                 while self.draw_note_list[0]['note'] != '8':
@@ -298,49 +314,26 @@ class Player:
             else:
                 self.current_notes_draw.append(self.draw_note_list.popleft())
 
-        #if a note was not hit within the window, remove it
-        if len(self.current_notes) != 0:
-            note = self.current_notes[0]
-            if note['ms'] + self.timing_bad < game_screen.current_ms:
-                if note['note'] in {'1', '2', '3', '4'}:
-                    self.combo = 0
-                    self.bad_count += 1
-                self.current_notes.popleft()
-            elif (note['ms'] <= game_screen.current_ms):
-                if note['note'] == '5':
-                    self.is_drumroll = True
-                    self.drumroll_big = 0
-                elif note['note'] == '6':
-                    self.is_drumroll = True
-                    self.drumroll_big = 2
-                elif note['note'] == '7':
-                    self.is_balloon = True
-                elif note['note'] == '8' and (self.is_drumroll or self.is_balloon):
-                    self.is_drumroll = False
-                    self.is_balloon = False
-        #If a bar is off screen, remove it
-        if len(self.current_bars) != 0:
-            for i in range(len(self.current_bars)-1, -1, -1):
-                bar_ms, pixels_per_frame = self.current_bars[i]['ms'], self.current_bars[i]['ppf']
-                position = self.get_position(game_screen, bar_ms, pixels_per_frame)
-                if position < game_screen.judge_x + 650:
-                    self.current_bars.pop(i)
-
         #If a note is off screen, remove it
-        if len(self.current_notes_draw) != 0:
-            for i in range(len(self.current_notes_draw)-1, -1, -1):
-                note_type, note_ms, pixels_per_frame = self.current_notes_draw[i]['note'], self.current_notes_draw[i]['ms'], self.current_notes_draw[i]['ppf']
-                position = self.get_position(game_screen, note_ms, pixels_per_frame)
-                if position < game_screen.judge_x + 650 and note_type not in {'5', '6', '7'}:
-                    if note_type == '8' and self.current_notes_draw[i-1]['note'] in {'5', '6', '7'} and self.current_notes_draw[i-1]['ms'] < self.current_notes_draw[i]['ms']:
-                        self.current_notes_draw.pop(i-1)
-                    else:
-                        self.current_notes_draw.pop(i)
+        if len(self.current_notes_draw) == 0:
+            return
 
-        if len(self.current_notes_draw) != 0:
-            if self.current_notes_draw[0]['note'] in {'5', '6', '8'}:
-                if 255 > self.current_notes_draw[0]['color'] > 0:
-                    self.current_notes_draw[0]['color'] += 1
+        if self.current_notes_draw[0]['note'] in {'5', '6', '8'} and 255 > self.current_notes_draw[0]['color'] > 0:
+                self.current_notes_draw[0]['color'] += 1
+
+        for i in range(len(self.current_notes_draw)-1, -1, -1):
+            note_type, note_ms, pixels_per_frame = self.current_notes_draw[i]['note'], self.current_notes_draw[i]['ms'], self.current_notes_draw[i]['ppf']
+            position = self.get_position(game_screen, note_ms, pixels_per_frame)
+            if position < game_screen.judge_x + 650 and note_type not in {'5', '6', '7'}:
+                if note_type == '8' and self.current_notes_draw[i-1]['note'] in {'5', '6', '7'} and self.current_notes_draw[i-1]['ms'] < self.current_notes_draw[i]['ms']:
+                    self.current_notes_draw.pop(i-1)
+                else:
+                    self.current_notes_draw.pop(i)
+
+    def note_manager(self, game_screen):
+        self.bar_manager(game_screen)
+        self.play_note_manager(game_screen)
+        self.draw_note_manager(game_screen)
 
     def note_correct(self, game_screen, note):
         index = note['index']
@@ -365,33 +358,39 @@ class Player:
             else:
                 self.current_notes_draw.pop(i)
 
+    def check_drumroll(self, game_screen, drum_type):
+        note_type = game_screen.note_type_dict[str(int(drum_type)+self.drumroll_big)]
+        self.draw_arc_list.append(NoteArc(note_type, game_screen.current_ms, self.player_number))
+        self.curr_drumroll_count += 1
+        self.score += 100
+        self.base_score_list.append(ScoreCounterAnimation(game_screen.current_ms, 100))
+        color = 255 - (self.curr_drumroll_count*10)
+        if color < 0:
+            self.current_notes_draw[0]['color'] = 0
+        else:
+            self.current_notes_draw[0]['color'] = color
+
+    def check_balloon(self, game_screen, drum_type):
+        current_note = self.current_notes[0]
+        if current_note['note'] == '7':
+            current_note = self.current_notes[1]
+        if len(self.balloon_list) < 1:
+            self.balloon_list.append(BalloonAnimation(game_screen.current_ms, current_note['balloon']))
+        self.curr_balloon_count += 1
+        self.score += 100
+        self.base_score_list.append(ScoreCounterAnimation(game_screen.current_ms, 100))
+        self.current_notes_draw[0]['popped'] = False
+        if self.curr_balloon_count == current_note['balloon']:
+            self.is_balloon = False
+            self.current_notes_draw[0]['popped'] = True
+            ray.play_sound(game_screen.sound_balloon_pop)
+            self.note_correct(game_screen, self.current_notes[0])
+
     def check_note(self, game_screen, drum_type):
         if self.is_drumroll:
-            note_type = game_screen.note_type_dict[str(int(drum_type)+self.drumroll_big)]
-            self.draw_arc_list.append(NoteArc(note_type, game_screen.current_ms, self.player_number))
-            self.curr_drumroll_count += 1
-            self.score += 100
-            self.base_score_list.append(ScoreCounterAnimation(game_screen.current_ms, 100))
-            color = 255 - (self.curr_drumroll_count*10)
-            if color < 0:
-                self.current_notes_draw[0]['color'] = 0
-            else:
-                self.current_notes_draw[0]['color'] = color
+            self.check_drumroll(game_screen, drum_type)
         elif self.is_balloon and drum_type == '1':
-            current_note = self.current_notes[0]
-            if current_note['note'] == '7':
-                current_note = self.current_notes[1]
-            if len(self.balloon_list) < 1:
-                self.balloon_list.append(BalloonAnimation(game_screen.current_ms, current_note['balloon']))
-            self.curr_balloon_count += 1
-            self.score += 100
-            self.base_score_list.append(ScoreCounterAnimation(game_screen.current_ms, 100))
-            self.current_notes_draw[0]['popped'] = False
-            if self.curr_balloon_count == current_note['balloon']:
-                self.is_balloon = False
-                self.current_notes_draw[0]['popped'] = True
-                ray.play_sound(game_screen.sound_balloon_pop)
-                self.note_correct(game_screen, self.current_notes[0])
+            self.check_balloon(game_screen, drum_type)
         elif len(self.current_notes) != 0:
             self.curr_drumroll_count = 0
             self.curr_balloon_count = 0
@@ -444,21 +443,25 @@ class Player:
             if len(self.drumroll_counter) == 0 or self.drumroll_counter[-1].is_finished:
                 self.drumroll_counter.append(DrumrollCounter(game_screen.current_ms))
 
-        if len(self.drumroll_counter) > 0:
-            if self.drumroll_counter[0].is_finished and not self.is_drumroll:
-                self.drumroll_counter.pop(0)
-            else:
-                self.drumroll_counter[0].update(game_screen, game_screen.current_ms, self.curr_drumroll_count)
+        if len(self.drumroll_counter) <= 0:
+            return
+
+        if self.drumroll_counter[0].is_finished and not self.is_drumroll:
+            self.drumroll_counter.pop(0)
+        else:
+            self.drumroll_counter[0].update(game_screen, game_screen.current_ms, self.curr_drumroll_count)
 
     def balloon_animation_manager(self, game_screen):
-        if len(self.balloon_list) != 0:
-            if self.balloon_list[0].is_finished:
-                self.balloon_list.pop(0)
+        if len(self.balloon_list) <= 0:
+            return
+
+        if self.balloon_list[0].is_finished:
+            self.balloon_list.pop(0)
+        else:
+            if self.is_balloon:
+                self.balloon_list[0].update(game_screen, game_screen.current_ms, self.curr_balloon_count, False)
             else:
-                if self.is_balloon:
-                    self.balloon_list[0].update(game_screen, game_screen.current_ms, self.curr_balloon_count, False)
-                else:
-                    self.balloon_list[0].update(game_screen, game_screen.current_ms, self.curr_balloon_count, True)
+                self.balloon_list[0].update(game_screen, game_screen.current_ms, self.curr_balloon_count, True)
 
     def combo_manager(self, game_screen):
         if self.combo >= 3 and len(self.combo_list) == 0:
@@ -497,6 +500,7 @@ class Player:
             self.check_note(game_screen, '2')
 
     def update(self, game_screen):
+        #pls help turn this into priority queue instead of sorting every frame thanks
         self.current_notes_draw = sorted(self.current_notes_draw, key=lambda d: d['ms'])
         self.note_manager(game_screen)
         self.combo_manager(game_screen)
@@ -554,61 +558,65 @@ class Player:
             y = 184
             ray.draw_texture(game_screen.texture_barline, position+note_padding-4, y+6, ray.WHITE)
             return
-        elif note in game_screen.note_type_dict:
-            eighth_in_ms = (60000 * 4 / game_screen.tja.bpm) / 8
-            if self.combo >= 50:
-                current_eighth = int((game_screen.current_ms - game_screen.start_ms) // eighth_in_ms)
-            else:
-                current_eighth = 0
-            if note in {'5', '6', 'drumroll_tail', 'dai_drumroll_tail', 'drumroll_body', 'dai_drumroll_body'}:
-                draw_color = color
-            else:
-                draw_color = 255
-            if note == '7':
-                offset = 12
-                balloon = True
-            else:
+        elif note not in game_screen.note_type_dict:
+            return
+
+        eighth_in_ms = (60000 * 4 / game_screen.tja.bpm) / 8
+        if self.combo >= 50:
+            current_eighth = int((game_screen.current_ms - game_screen.start_ms) // eighth_in_ms)
+        else:
+            current_eighth = 0
+        if note in {'5', '6', 'drumroll_tail', 'dai_drumroll_tail', 'drumroll_body', 'dai_drumroll_body'}:
+            draw_color = color
+        else:
+            draw_color = 255
+        if note == '7':
+            offset = 12
+            balloon = True
+        else:
+            offset = 0
+            balloon = False
+        if drumroll_length == None:
+            drumroll_length = game_screen.note_type_dict[note][0].width
+        source_rect = ray.Rectangle(0,0,game_screen.note_type_dict[note][0].width,game_screen.note_type_dict[note][0].height)
+        dest_rect = ray.Rectangle(position-offset, 192, drumroll_length,game_screen.note_type_dict['1'][0].height)
+        ray.draw_texture_pro(game_screen.note_type_dict[note][current_eighth % 2], source_rect, dest_rect, ray.Vector2(0,0), 0, ray.Color(255, draw_color, draw_color, 255))
+        if balloon:
+            ray.draw_texture(game_screen.note_type_dict['balloon_tail'][current_eighth % 2], position-offset+128, 192, ray.Color(255, draw_color, draw_color, 255))
+        if se_note != None:
+            if drumroll_length == game_screen.note_type_dict[note][0].width:
+                drumroll_length = game_screen.texture_se_moji[se_note].width
                 offset = 0
-                balloon = False
-            if drumroll_length == None:
-                drumroll_length = game_screen.note_type_dict[note][0].width
-            source_rect = ray.Rectangle(0,0,game_screen.note_type_dict[note][0].width,game_screen.note_type_dict[note][0].height)
-            dest_rect = ray.Rectangle(position-offset, 192, drumroll_length,game_screen.note_type_dict['1'][0].height)
-            ray.draw_texture_pro(game_screen.note_type_dict[note][current_eighth % 2], source_rect, dest_rect, ray.Vector2(0,0), 0, ray.Color(255, draw_color, draw_color, 255))
-            if balloon:
-                ray.draw_texture(game_screen.note_type_dict['balloon_tail'][current_eighth % 2], position-offset+128, 192, ray.Color(255, draw_color, draw_color, 255))
-            if se_note != None:
-                if drumroll_length == game_screen.note_type_dict[note][0].width:
-                    drumroll_length = game_screen.texture_se_moji[se_note].width
-                    offset = 0
-                else:
-                    offset = 30
-                source_rect = ray.Rectangle(0,0,game_screen.texture_se_moji[se_note].width,game_screen.texture_se_moji[se_note].height)
-                dest_rect = ray.Rectangle(position-offset - (game_screen.texture_se_moji[se_note].width // 2) + 64, 323, drumroll_length,game_screen.texture_se_moji[se_note].height)
-                ray.draw_texture_pro(game_screen.texture_se_moji[se_note], source_rect, dest_rect, ray.Vector2(0,0), 0, ray.WHITE)
+            else:
+                offset = 30
+            source_rect = ray.Rectangle(0,0,game_screen.texture_se_moji[se_note].width,game_screen.texture_se_moji[se_note].height)
+            dest_rect = ray.Rectangle(position-offset - (game_screen.texture_se_moji[se_note].width // 2) + 64, 323, drumroll_length,game_screen.texture_se_moji[se_note].height)
+            ray.draw_texture_pro(game_screen.texture_se_moji[se_note], source_rect, dest_rect, ray.Vector2(0,0), 0, ray.WHITE)
 
     def draw_notes(self, game_screen):
-        if len(self.current_notes_draw) != 0 or len(self.current_bars) != 0:
-            for i in range(len(self.current_bars)-1, -1, -1):
-                bar = self.current_bars[i]
-                load_ms, pixels_per_frame = bar['load_ms'], bar['ppf']
-                position = self.get_position(game_screen, load_ms, pixels_per_frame)
-                self.draw_note(game_screen, 'barline', position, 255, None)
+        if len(self.current_notes_draw) <= 0 or len(self.current_bars) <= 0:
+            return
 
-            for i in range(len(self.current_notes_draw)-1, -1, -1):
-                note = self.current_notes_draw[i]
-                note_type, load_ms, pixels_per_frame = note['note'], note['load_ms'], note['ppf']
-                position = self.get_position(game_screen, load_ms, pixels_per_frame)
-                if 'popped' in note:
-                    continue
-                if note_type == '5':
-                    self.draw_drumroll(game_screen, False, position, i, note['color'])
-                elif note_type == '6':
-                    self.draw_drumroll(game_screen, True, position, i, note['color'])
-                if note_type == '7':
-                    self.draw_balloon(game_screen, note, position, i)
-                else:
-                    self.draw_note(game_screen, note_type, position, 255, note['se_note'])
+        for i in range(len(self.current_bars)-1, -1, -1):
+            bar = self.current_bars[i]
+            load_ms, pixels_per_frame = bar['load_ms'], bar['ppf']
+            position = self.get_position(game_screen, load_ms, pixels_per_frame)
+            self.draw_note(game_screen, 'barline', position, 255, None)
+
+        for i in range(len(self.current_notes_draw)-1, -1, -1):
+            note = self.current_notes_draw[i]
+            note_type, load_ms, pixels_per_frame = note['note'], note['load_ms'], note['ppf']
+            position = self.get_position(game_screen, load_ms, pixels_per_frame)
+            if 'popped' in note:
+                continue
+            if note_type == '5':
+                self.draw_drumroll(game_screen, False, position, i, note['color'])
+            elif note_type == '6':
+                self.draw_drumroll(game_screen, True, position, i, note['color'])
+            if note_type == '7':
+                self.draw_balloon(game_screen, note, position, i)
+            else:
+                self.draw_note(game_screen, note_type, position, 255, note['se_note'])
 
     def draw(self, game_screen):
         ray.draw_texture(game_screen.texture_lane, 332, 184, ray.WHITE)
