@@ -70,6 +70,13 @@ class GameScreen(Screen):
         self.audio_time = 0
         self.movie = None
         self.song_music = None
+        self.pause_index = 0
+        self.pause_items = [
+            ("continue", "btn_continue_en", "btn_continue_hover_en"),
+            ("restart", "btn_retry_en", "btn_retry_hover_en"),
+            ("songselect", "btn_songselect_en", "btn_songselect_hover_en")
+        ]
+
         if global_data.config["general"]["nijiiro_notes"]:
             # drop original
             if "notes" in tex.textures:
@@ -77,6 +84,7 @@ class GameScreen(Screen):
             # load nijiiro, rename "notes"
             # to leave hardcoded 'notes' in calls below
             tex.load_zip("game", "notes_nijiiro")
+            tex.load_zip("game", "pause_menu")
             tex.textures["notes"] = tex.textures.pop("notes_nijiiro")
             logger.info("Loaded nijiiro notes textures")
         ray.set_shader_value_texture(self.mask_shader, ray.get_shader_location(self.mask_shader, "texture0"), tex.textures['balloon']['rainbow_mask'].texture)
@@ -228,20 +236,44 @@ class GameScreen(Screen):
             self.start_ms = get_current_ms() - self.pause_time
 
     def global_keys(self):
-        if ray.is_key_pressed(global_data.config["keys"]["restart_key"]):
-            if self.song_music is not None:
-                audio.stop_music_stream(self.song_music)
-            self.init_tja(global_data.session_data[global_data.player_num].selected_song)
-            audio.play_sound('restart', 'sound')
-            self.song_started = False
-
         if ray.is_key_pressed(global_data.config["keys"]["back_key"]):
-            if self.song_music is not None:
-                audio.stop_music_stream(self.song_music)
-            return self.on_screen_end('SONG_SELECT')
-
-        if ray.is_key_pressed(global_data.config["keys"]["pause_key"]):
             self.pause_song()
+            self.pause_index = 0
+
+        if self.paused:
+            return self.handle_pause_input()
+
+            #return self.on_screen_end('SONG_SELECT')
+
+    def handle_pause_input(self):
+        if (ray.is_key_pressed(global_data.config["keys_1p"]["left_kat"][0]) or
+                ray.is_key_pressed(ray.KeyboardKey.KEY_LEFT) or
+                ray.is_key_pressed(ray.KeyboardKey.KEY_UP)):
+            self.pause_index = (self.pause_index - 1) % len(self.pause_items)
+            audio.play_sound('kat', 'sound')
+        if (ray.is_key_pressed(global_data.config["keys_1p"]["right_kat"][0]) or
+                ray.is_key_pressed(ray.KeyboardKey.KEY_RIGHT) or
+                ray.is_key_pressed(ray.KeyboardKey.KEY_DOWN)):
+            self.pause_index = (self.pause_index + 1) % len(self.pause_items)
+            audio.play_sound('kat', 'sound')
+        if (ray.is_key_pressed(global_data.config["keys_1p"]["left_don"][0]) or
+                ray.is_key_pressed(global_data.config["keys_1p"]["right_don"][0]) or
+                ray.is_key_pressed(ray.KeyboardKey.KEY_ENTER)):
+            item_id, _, _ = self.pause_items[self.pause_index]
+            audio.play_sound('restart', 'sound')
+            # We unpause the song regardless, so we need to only check restart/songselect case
+            self.pause_song()
+            if item_id == "restart":
+                if self.song_music is not None:
+                    audio.stop_music_stream(self.song_music)
+                self.init_tja(global_data.session_data[global_data.player_num].selected_song)
+                self.song_started = False
+            elif item_id == "songselect":
+                if self.song_music is not None:
+                    audio.stop_music_stream(self.song_music)
+                return self.on_screen_end('SONG_SELECT')
+            return None
+
 
     def spawn_ending_anims(self):
         if global_data.session_data[global_data.player_num].result_data.bad == 0:
@@ -264,6 +296,9 @@ class GameScreen(Screen):
         super().update()
         current_time = get_current_ms()
         self.transition.update(current_time)
+
+        if self.paused:
+            return self.global_keys()
         if not self.paused:
             self.current_ms = current_time - self.start_ms
         if self.transition.is_finished:
@@ -302,6 +337,13 @@ class GameScreen(Screen):
 
         return self.global_keys()
 
+    def draw_pause_menu(self):
+        tex.draw_texture("pause_menu", "menu_background_dim")
+        tex.draw_texture("pause_menu", "menu_en")
+        for i, (_, normal_tex, hover_tex) in enumerate(self.pause_items):
+            tex_key = hover_tex if i == self.pause_index else normal_tex
+            tex.draw_texture("pause_menu", tex_key)
+
     def draw_overlay(self):
         self.song_info.draw()
         self.transition.draw()
@@ -315,6 +357,10 @@ class GameScreen(Screen):
             self.background.draw()
         self.player_1.draw(self.current_ms, self.start_ms, self.mask_shader)
         self.draw_overlay()
+
+        if self.paused:
+            self.draw_pause_menu()
+
 
 class Player:
     TIMING_GOOD = 25.0250015258789
