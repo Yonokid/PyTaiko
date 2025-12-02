@@ -1,4 +1,3 @@
-import bisect
 from enum import IntEnum
 import hashlib
 import math
@@ -10,10 +9,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-import pyray as ray
-
 from libs.global_data import Modifiers
-from libs.utils import get_pixels_per_frame, strip_comments, global_tex
+from libs.utils import strip_comments, global_tex
 
 
 @lru_cache(maxsize=64)
@@ -55,27 +52,15 @@ class TimelineObject:
     judge_pos_y: float = field(init=False)
     delta_x: float = field(init=False)
     delta_y: float = field(init=False)
-    border_color: ray.Color = field(init=False)
-    cam_h_offset: float = field(init=False)
-    cam_v_offset: float = field(init=False)
-    cam_h_scale: float = field(init=False)
-    cam_v_scale: float = field(init=False)
-    cam_zoom: float = field(init=False)
-    cam_rotation: float = field(init=False)
 
     bpm: float = field(init=False)
     bpmchange: float = field(init=False)
     delay: float = field(init=False)
-    '''
     gogo_time: bool = field(init=False)
     branch_params: str = field(init=False)
     is_branch_start: bool = False
     is_section_marker: bool = False
-    sudden_appear_ms: float = 0
-    sudden_moving_ms: float = 0
-    bpmchange (float): If it exists, the bpm will be multiplied by it when the note passes the judgement circle
-    delay (float): Milliseconds, if it exists, the delay will be added when the note passes the judgement circle
-    '''
+    lyric: str = ''
 
     def __lt__(self, other):
         """Allow sorting by load_ms"""
@@ -89,30 +74,25 @@ class Note:
     Attributes:
         type (int): The type (color) of the note.
         hit_ms (float): The time at which the note should be hit.
-        load_ms (float): The time at which the note should be loaded.
-        pixels_per_frame_x (float): The number of pixels per frame in the x direction.
-        pixels_per_frame_y (float): The number of pixels per frame in the y direction.
+        bpm (float): The beats per minute of the note.
+        scroll_x (float): The horizontal scroll speed of the note.
+        scroll_y (float): The vertical scroll speed of the note.
         display (bool): Whether the note should be displayed.
         index (int): The index of the note.
-        gogo_time (bool): Whether the note is a gogo time note.
         moji (int): The text drawn below the note.
-        is_branch_start (bool): Whether the note is the start of a branch.
-        branch_params (str): The parameters (requirements) of the branch.
     """
     type: int = field(init=False)
     hit_ms: float = field(init=False)
-    load_ms: float = field(init=False)
-    pixels_per_frame_x: float = field(init=False)
-    pixels_per_frame_y: float = field(init=False)
-    display: bool = field(init=False)
-    index: int = field(init=False)
-    gogo_time: bool = field(init=False)
-    moji: int = field(init=False)
-    is_branch_start: bool = field(init=False)
-    branch_params: str = field(init=False)
-    lyric: str = field(init=False)
+    bpm: float = field(init=False)
+    scroll_x: float = field(init=False)
+    scroll_y: float = field(init=False)
     sudden_appear_ms: float = field(init=False)
     sudden_moving_ms: float = field(init=False)
+    display: bool = field(init=False)
+    index: int = field(init=False)
+    moji: int = field(init=False)
+    branch_params: str = field(init=False)
+    is_branch_start: bool = field(init=False)
 
     def __lt__(self, other):
         return self.hit_ms < other.hit_ms
@@ -130,7 +110,7 @@ class Note:
         return self.hit_ms == other.hit_ms
 
     def _get_hash_data(self) -> bytes:
-        hash_fields = ['type', 'hit_ms', 'load_ms']
+        hash_fields = ['type', 'hit_ms', 'bpm', 'scroll_x', 'scroll_y']
         field_values = []
 
         for field_name in sorted(hash_fields):
@@ -349,6 +329,41 @@ def test_encodings(file_path: Path):
 
 logger = logging.getLogger(__name__)
 
+@dataclass
+class ParserState:
+    time_signature: float = 4/4
+    bpm: float = 120
+    bpmchange_last_bpm: float = 120
+    scroll_x_modifier: float = 1
+    scroll_y_modifier: float = 0
+    scroll_type: ScrollType = ScrollType.NMSCROLL
+    barline_display: bool = True
+    curr_note_list: list[Note | Drumroll | Balloon] = field(default_factory=lambda: [])
+    curr_draw_list: list[Note | Drumroll | Balloon] = field(default_factory=lambda: [])
+    curr_bar_list: list[Note] = field(default_factory=lambda: [])
+    curr_timeline: list[TimelineObject] = field(default_factory=lambda: [])
+    index: int = 0
+    balloons: list[int] = field(default_factory=lambda: [])
+    balloon_index: int = 0
+    prev_note: Optional[Note] = None
+    barline_added: bool = False
+    sudden_appear: float = 0.0
+    sudden_moving: float = 0.0
+    judge_pos_x: float = 0.0
+    judge_pos_y: float = 0.0
+    delay_current: float = 0.0
+    delay_last_note_ms: float = 0.0
+    is_branching: bool = False
+    is_section_start: bool = False
+    start_branch_ms: float = 0.0
+    start_branch_bpm: float = 120
+    start_branch_time_sig: float = 4/4
+    start_branch_x_scroll: float = 1.0
+    start_branch_y_scroll: float = 0.0
+    start_branch_barline: bool = False
+    branch_balloon_index: int = 0
+    section_bar: Optional[Note] = None
+
 class TJAParser:
     """Parse a TJA file and extract metadata and data.
 
@@ -363,14 +378,13 @@ class TJAParser:
         data (list): The data extracted from the TJA file.
     """
     DIFFS = {0: "easy", 1: "normal", 2: "hard", 3: "oni", 4: "edit", 5: "tower", 6: "dan"}
-    def __init__(self, path: Path, start_delay: int = 0, distance: float = 866):
+    def __init__(self, path: Path, start_delay: int = 0):
         """
         Initialize a TJA object.
 
         Args:
             path (Path): The path to the TJA file.
             start_delay (int): The delay in milliseconds before the first note.
-            distance (int): The distance between notes.
         """
         self.file_path: Path = path
 
@@ -384,8 +398,21 @@ class TJAParser:
         logger.debug(f"Parsing TJA file: {self.file_path}")
         self.get_metadata()
 
-        self.distance = distance
         self.current_ms: float = start_delay
+
+        self.master_notes = NoteList()
+        self.branch_m: list[NoteList] = []
+        self.branch_e: list[NoteList] = []
+        self.branch_n: list[NoteList] = []
+
+    def _build_command_registry(self):
+        """Auto-discover command handlers based on naming convention."""
+        registry = {}
+        for name in dir(self):
+            if name.startswith('handle_'):
+                cmd_name = '#' + name[7:].upper()
+                registry[cmd_name] = getattr(self, name)
+        return registry
 
     def get_metadata(self):
         """
@@ -717,628 +744,326 @@ class TJAParser:
 
         return result
 
+    def handle_measure(self, part: str, state: ParserState):
+        numerator, denominator = part.split('/')
+        state.time_signature = float(numerator) / float(denominator)
+
+    def handle_scroll(self, part: str, state: ParserState):
+        if 'i' in part:
+            normalized = part.replace('.i', 'j').replace('i', 'j')
+            normalized = normalized.replace(',', '')
+            c = complex(normalized)
+            state.scroll_x_modifier = c.real
+            state.scroll_y_modifier = c.imag
+        else:
+            state.scroll_x_modifier = float(part)
+            state.scroll_y_modifier = 0.0
+
+    def handle_bpmchange(self, part: str, state: ParserState):
+        parsed_bpm = float(part)
+        if state.scroll_type == ScrollType.BMSCROLL or state.scroll_type == ScrollType.HBSCROLL:
+            # Do not modify bpm, it needs to be changed live by bpmchange
+            bpmchange = parsed_bpm / state.bpmchange_last_bpm
+            state.bpmchange_last_bpm = parsed_bpm
+
+            bpmchange_timeline = TimelineObject()
+            bpmchange_timeline.hit_ms = self.current_ms
+            bpmchange_timeline.bpmchange = bpmchange
+            state.curr_timeline.append(bpmchange_timeline)
+        else:
+            timeline_obj = TimelineObject()
+            timeline_obj.hit_ms = self.current_ms
+            timeline_obj.bpm = parsed_bpm
+            state.bpm = parsed_bpm
+            state.curr_timeline.append(timeline_obj)
+
+    def handle_section(self, part: str, state: ParserState):
+        state.is_section_start = True
+
+    def handle_branchstart(self, part: str, state: ParserState):
+        state.start_branch_ms = self.current_ms
+        state.start_branch_bpm = state.bpm
+        state.start_branch_time_sig = state.time_signature
+        state.start_branch_x_scroll = state.scroll_x_modifier
+        state.start_branch_y_scroll = state.scroll_y_modifier
+        state.start_branch_barline = state.barline_display
+        state.branch_balloon_index = state.balloon_index
+        branch_params = part[13:]
+
+        def set_branch_params(bar_list: list[Note], branch_params: str, section_bar: Optional[Note]):
+            if bar_list and len(bar_list) > 1:
+                section_index = -2
+                if section_bar and section_bar.hit_ms < self.current_ms:
+                    if section_bar in bar_list:
+                        section_index = bar_list.index(section_bar)
+                bar_list[section_index].branch_params = branch_params
+            elif bar_list:
+                section_index = -1
+                bar_list[section_index].branch_params = branch_params
+            elif bar_list == []:
+                bar_line = Note()
+
+                bar_line.hit_ms = self.current_ms
+                bar_line.type = 0
+                bar_line.display = False
+                bar_line.branch_params = branch_params
+                bar_list.append(bar_line)
+
+        for bars in [state.curr_bar_list,
+                        self.branch_m[-1].bars if self.branch_m else None,
+                        self.branch_e[-1].bars if self.branch_e else None,
+                        self.branch_n[-1].bars if self.branch_n else None]:
+            set_branch_params(bars, branch_params, state.section_bar)
+        if state.section_bar:
+            state.section_bar = None
+
+    def handle_branchend(self, part: str, state: ParserState):
+        state.curr_note_list = self.master_notes.play_notes
+        state.curr_draw_list = self.master_notes.draw_notes
+        state.curr_bar_list = self.master_notes.bars
+        state.curr_timeline = self.master_notes.timeline
+
+    def handle_lyric(self, part: str, state: ParserState):
+        timeline_obj = TimelineObject()
+        timeline_obj.lyric = part
+        state.curr_timeline.append(timeline_obj)
+
+    def handle_jposscroll(self, part: str, state: ParserState):
+        parts = part.split()
+        duration_ms = float(parts[0]) * 1000
+        distance_str = parts[1]
+        direction = int(parts[2])
+        delta_x = 0
+        delta_y = 0
+        if 'i' in distance_str:
+            normalized = distance_str.replace('.i', 'j').replace('i', 'j')
+            normalized = normalized.replace(',', '')
+            c = complex(normalized)
+            delta_x = c.real
+            delta_y = c.imag
+        else:
+            distance = float(distance_str)
+            delta_x = distance
+            delta_y = 0
+        if direction == 0:
+            delta_x = -delta_x
+            delta_y = -delta_y
+
+        for obj in reversed(state.curr_timeline):
+            if hasattr(obj, 'delta_x') and hasattr(obj, 'delta_y'):
+                if obj.hit_ms > self.current_ms:
+                    available_time = self.current_ms - obj.load_ms
+                    total_duration = obj.hit_ms - obj.load_ms
+                    ratio = min(1.0, available_time / total_duration) if total_duration > 0 else 1.0
+                    obj.delta_x *= ratio
+                    obj.delta_y *= ratio
+                    obj.hit_ms = self.current_ms
+                    break
+
+        jpos_scroll = TimelineObject()
+        jpos_scroll.load_ms = self.current_ms
+        jpos_scroll.hit_ms = self.current_ms + duration_ms
+        jpos_scroll.judge_pos_x = state.judge_pos_x
+        jpos_scroll.judge_pos_y = state.judge_pos_y
+        jpos_scroll.delta_x = delta_x
+        jpos_scroll.delta_y = delta_y
+        state.curr_timeline.append(jpos_scroll)
+
+        state.judge_pos_x += delta_x
+        state.judge_pos_y += delta_y
+
+    def handle_nmscroll(self, part: str, state: ParserState):
+        state.scroll_type = ScrollType.NMSCROLL
+
+    def handle_bmscroll(self, part: str, state: ParserState):
+        state.scroll_type = ScrollType.BMSCROLL
+
+    def handle_hbscroll(self, part: str, state: ParserState):
+        state.scroll_type = ScrollType.HBSCROLL
+
+    def handle_barlineon(self, part: str, state: ParserState):
+        state.barline_display = True
+
+    def handle_barlineoff(self, part: str, state: ParserState):
+        state.barline_display = False
+
+    def handle_gogostart(self, part: str, state: ParserState):
+        timeline_obj = TimelineObject()
+        timeline_obj.gogo_time = True
+        state.curr_timeline.append(timeline_obj)
+
+    def handle_gogoend(self, part: str, state: ParserState):
+        timeline_obj = TimelineObject()
+        timeline_obj.gogo_time = False
+        state.curr_timeline.append(timeline_obj)
+
+    def handle_delay(self, part: str, state: ParserState):
+        delay_ms = float(part) * 1000
+        if state.scroll_type == ScrollType.BMSCROLL or state.scroll_type == ScrollType.HBSCROLL:
+            if delay_ms <= 0:
+                # No changes if not positive
+                pass
+            else:
+                # Do not modify current_ms, it will be modified live
+                state.delay_current += delay_ms
+
+                # Delays will be combined between notes, and attached to previous note
+        else:
+            self.current_ms += delay_ms
+
+    def handle_sudden(self, part: str, state: ParserState):
+        parts = part.split()
+        if len(parts) >= 2:
+            appear_duration = float(parts[0])
+            moving_duration = float(parts[1])
+
+            state.sudden_appear = appear_duration * 1000
+            state.sudden_moving = moving_duration * 1000
+
+            if state.sudden_appear == 0:
+                state.sudden_appear = float('inf')
+            if state.sudden_moving == 0:
+                state.sudden_moving = float('inf')
+
+    '''
+    def handle_m(self, part: str, state: ParserState):
+        self.branch_m.append(NoteList())
+        state.curr_note_list = self.branch_m[-1].play_notes
+        state.curr_draw_list = self.branch_m[-1].draw_notes
+        state.curr_bar_list = self.branch_m[-1].bars
+        state.curr_timeline = self.branch_m[-1].timeline
+        self.current_ms = state.start_branch_ms
+        state.bpm = state.start_branch_bpm
+        state.time_signature = state.start_branch_time_sig
+        state.scroll_x_modifier = state.start_branch_x_scroll
+        state.scroll_y_modifier = state.start_branch_y_scroll
+        state.barline_display = state.start_branch_barline
+        state.balloon_index = state.branch_balloon_index
+        state.is_branching = True
+
+    def handle_e(self, part: str, state: ParserState):
+        self.branch_e.append(NoteList())
+        state.curr_note_list = self.branch_e[-1].play_notes
+        state.curr_draw_list = self.branch_e[-1].draw_notes
+        state.curr_bar_list = self.branch_e[-1].bars
+        state.curr_timeline = self.branch_e[-1].timeline
+        self.current_ms = state.start_branch_ms
+        state.bpm = state.start_branch_bpm
+        state.time_signature = state.start_branch_time_sig
+        state.scroll_x_modifier = state.start_branch_x_scroll
+        state.scroll_y_modifier = state.start_branch_y_scroll
+        state.barline_display = state.start_branch_barline
+        state.balloon_index = state.branch_balloon_index
+        state.is_branching = True
+
+    def handle_n(self, part: str, state: ParserState):
+        self.branch_n.append(NoteList())
+        state.curr_note_list = self.branch_n[-1].play_notes
+        state.curr_draw_list = self.branch_n[-1].draw_notes
+        state.curr_bar_list = self.branch_n[-1].bars
+        state.curr_timeline = self.branch_n[-1].timeline
+        self.current_ms = state.start_branch_ms
+        state.bpm = state.start_branch_bpm
+        state.time_signature = state.start_branch_time_sig
+        state.scroll_x_modifier = state.start_branch_x_scroll
+        state.scroll_y_modifier = state.start_branch_y_scroll
+        state.barline_display = state.start_branch_barline
+        state.balloon_index = state.branch_balloon_index
+        state.is_branching = True
+    '''
+
+    def add_bar(self, state: ParserState):
+        bar_line = Note()
+
+        bar_line.hit_ms = self.current_ms
+        bar_line.type = 0
+        bar_line.display = state.barline_display
+        bar_line.bpm = state.bpm
+        bar_line.scroll_x = state.scroll_x_modifier
+        bar_line.scroll_y = state.scroll_y_modifier
+
+        if state.barline_added:
+            bar_line.display = False
+
+        if state.is_branching:
+            bar_line.is_branch_start = True
+            state.is_branching = False
+
+        if state.is_section_start:
+            state.section_bar = bar_line
+            state.is_section_start = False
+
+        return bar_line
+
+    def add_note(self, item: str, state: ParserState):
+        note = Note()
+        note.hit_ms = self.current_ms
+        state.delay_last_note_ms = self.current_ms
+        note.display = True
+        note.type = int(item)
+        note.index = state.index
+        note.bpm = state.bpm
+        note.scroll_x = state.scroll_x_modifier
+        note.scroll_y = state.scroll_y_modifier
+
+        if state.sudden_appear > 0 or state.sudden_moving > 0:
+            note.sudden_appear_ms = state.sudden_appear
+            note.sudden_moving_ms = state.sudden_moving
+
+        if item in ('5', '6'):
+            note = Drumroll(note)
+            note.color = 255
+        elif item in ('7', '9'):
+            state.balloon_index += 1
+            note = Balloon(note, is_kusudama=item == '9')
+            note.count = 1 if not state.balloons else state.balloons.pop(0)
+        elif item == '8':
+            if state.prev_note is None:
+                raise ValueError("No previous note found")
+
+        return note
+
     def notes_to_position(self, diff: int):
         """Parse a TJA's notes into a NoteList."""
-        master_notes = NoteList()
-        branch_m: list[NoteList] = []
-        branch_e: list[NoteList] = []
-        branch_n: list[NoteList] = []
+        commands = self._build_command_registry()
         notes = self.data_to_notes(diff)
-        balloon = self.metadata.course_data[diff].balloon.copy()
-        count = 0
-        index = 0
-        sudden_appear = 0
-        sudden_moving = 0
-        judge_pos_x = 0
-        judge_pos_y = 0
-        border_color = ray.BLACK
-        cam_h_offset = 0
-        cam_v_offset = 0
-        cam_h_move_active = False
-        cam_h_move_start_ms = 0
-        cam_h_move_duration_ms = 0
-        cam_h_move_start_offset = 0
-        cam_h_move_end_offset = 0
-        cam_h_easing_point = None
-        cam_h_easing_function = None
-        cam_v_move_active = False
-        cam_v_move_start_ms = 0
-        cam_v_move_duration_ms = 0
-        cam_v_move_start_offset = 0
-        cam_v_move_end_offset = 0
-        cam_v_easing_point = None
-        cam_v_easing_function = None
-        cam_zoom_move_active = False
-        cam_zoom_move_start_ms = 0
-        cam_zoom_start = 1.0
-        cam_zoom_end = 1.0
-        cam_zoom_easing_point = ""
-        cam_zoom_easing_function = ""
-        cam_h_scale = 1.0
-        cam_h_scale_move_active = False
-        cam_h_scale_move_start_ms = 0
-        cam_h_scale_start = 1.0
-        cam_h_scale_end = 1.0
-        cam_h_scale_easing_point = ""
-        cam_h_scale_easing_function = ""
-        cam_v_scale = 1.0
-        cam_v_scale_move_active = False
-        cam_v_scale_move_start_ms = 0
-        cam_v_scale_start = 1.0
-        cam_v_scale_end = 1.0
-        cam_v_scale_easing_point = ""
-        cam_v_scale_easing_function = ""
-        cam_rotation = 0.0
-        cam_rotation_move_active = False
-        cam_rotation_move_start_ms = 0
-        cam_rotation_start = 0.0
-        cam_rotation_end = 0.0
-        cam_rotation_easing_point = ""
-        cam_rotation_easing_function = ""
-        time_signature = 4/4
-        bpm = self.metadata.bpm
-        x_scroll_modifier = 1
-        y_scroll_modifier = 0
-        barline_display = True
-        gogo_time = False
-        curr_note_list = master_notes.play_notes
-        curr_draw_list = master_notes.draw_notes
-        curr_bar_list = master_notes.bars
-        curr_timeline = master_notes.timeline
+
+        state = ParserState()
+        state.bpm = self.metadata.bpm
+        state.bpmchange_last_bpm = self.metadata.bpm
+        state.balloons = self.metadata.course_data[diff].balloon.copy()
+        state.curr_note_list = self.master_notes.play_notes
+        state.curr_draw_list = self.master_notes.draw_notes
+        state.curr_bar_list = self.master_notes.bars
+        state.curr_timeline = self.master_notes.timeline
+
         init_bpm = TimelineObject()
         init_bpm.hit_ms = self.current_ms
-        init_bpm.bpm = bpm
-        curr_timeline.append(init_bpm)
-        start_branch_ms = 0
-        start_branch_bpm = bpm
-        start_branch_time_sig = time_signature
-        start_branch_x_scroll = x_scroll_modifier
-        start_branch_y_scroll = y_scroll_modifier
-        start_branch_barline = barline_display
-        start_branch_gogo = gogo_time
-        branch_balloon_count = 0
-        is_branching = False
-        prev_note = None
-        is_section_start = False
-        section_bar = None
-        lyric = ""
-        scroll_type = ScrollType.NMSCROLL
-
-        # Only used during BMSCROLL or HBSCROLL
-        bpmchange_last_bpm = bpm
-        delay_current = 0
-        delay_last_note_ms = self.current_ms
+        init_bpm.bpm = state.bpm
+        state.curr_timeline.append(init_bpm)
 
         for bar in notes:
             bar_length = sum(len(part) for part in bar if '#' not in part)
-            barline_added = False
+            state.barline_added = False
 
             for part in bar:
-                if part.startswith('#BORDERCOLOR'):
-                    r, g, b = part[13:].split(',')
-                    border_color = ray.Color(int(r), int(g), int(b), 255)
-                    timeline_obj = TimelineObject()
-                    timeline_obj.hit_ms = self.current_ms
-                    timeline_obj.border_color = border_color
-                    bisect.insort(curr_timeline, timeline_obj, key=lambda x: x.hit_ms)
-                    continue
-                if part.startswith('#CAMRESET'):
-                    timeline_obj = TimelineObject()
-                    timeline_obj.hit_ms = self.current_ms
-                    timeline_obj.cam_h_offset = 0
-                    timeline_obj.cam_v_offset = 0
-                    timeline_obj.cam_zoom = 1
-                    timeline_obj.cam_h_scale = 1
-                    timeline_obj.cam_v_scale = 1
-                    timeline_obj.cam_rotation = 0
-                    bisect.insort(curr_timeline, timeline_obj, key=lambda x: x.hit_ms)
-                    continue
-
-                # Horizontal Offset Commands
-                if part.startswith('#CAMHOFFSET'):
-                    cam_h_offset = float(part[12:])
-                    timeline_obj = TimelineObject()
-                    timeline_obj.hit_ms = self.current_ms
-                    timeline_obj.cam_h_offset = cam_h_offset
-                    bisect.insort(curr_timeline, timeline_obj, key=lambda x: x.hit_ms)
-                    continue
-                if part.startswith('#CAMHMOVESTART'):
-                    parts = part[15:].split(',')
-                    if len(parts) >= 4:
-                        cam_h_move_start_offset = float(parts[0].strip())
-                        cam_h_move_end_offset = float(parts[1].strip())
-                        cam_h_easing_point = parts[2].strip()
-                        cam_h_easing_function = parts[3].strip()
-                        cam_h_move_active = True
-                        cam_h_move_start_ms = self.current_ms
-                        cam_h_offset = cam_h_move_start_offset
-                    continue
-                if part.startswith('#CAMHMOVEEND'):
-                    if cam_h_move_active:
-                        cam_h_move_duration_ms = self.current_ms - cam_h_move_start_ms
-                        interpolation_interval_ms = 8
-                        num_steps = int(cam_h_move_duration_ms / interpolation_interval_ms)
-                        for step in range(num_steps + 1):
-                            t = step / max(num_steps, 1)
-                            eased_t = self.apply_easing(t, cam_h_easing_point, cam_h_easing_function)
-                            interpolated_ms = cam_h_move_start_ms + (step * interpolation_interval_ms)
-                            interp_offset = cam_h_move_start_offset + (
-                                (cam_h_move_end_offset - cam_h_move_start_offset) * eased_t
-                            )
-                            cam_timeline = TimelineObject()
-                            cam_timeline.hit_ms = interpolated_ms
-                            cam_timeline.cam_h_offset = interp_offset
-                            curr_timeline.append(cam_timeline)
-                        cam_h_offset = cam_h_move_end_offset
-                        cam_h_move_active = False
-                    continue
-
-                # Vertical Offset Commands
-                if part.startswith('#CAMVOFFSET'):
-                    cam_v_offset = float(part[12:])
-                    timeline_obj = TimelineObject()
-                    timeline_obj.hit_ms = self.current_ms
-                    timeline_obj.cam_v_offset = cam_v_offset
-                    bisect.insort(curr_timeline, timeline_obj, key=lambda x: x.hit_ms)
-                    continue
-                if part.startswith('#CAMVMOVESTART'):
-                    parts = part[15:].split(',')
-                    if len(parts) >= 4:
-                        cam_v_move_start_offset = float(parts[0].strip())
-                        cam_v_move_end_offset = float(parts[1].strip())
-                        cam_v_easing_point = parts[2].strip()
-                        cam_v_easing_function = parts[3].strip()
-                        cam_v_move_active = True
-                        cam_v_move_start_ms = self.current_ms
-                        cam_v_offset = cam_v_move_start_offset
-                    continue
-                if part.startswith('#CAMVMOVEEND'):
-                    if cam_v_move_active:
-                        cam_v_move_duration_ms = self.current_ms - cam_v_move_start_ms
-                        interpolation_interval_ms = 8
-                        num_steps = int(cam_v_move_duration_ms / interpolation_interval_ms)
-                        for step in range(num_steps + 1):
-                            t = step / max(num_steps, 1)
-                            eased_t = self.apply_easing(t, cam_v_easing_point, cam_v_easing_function)
-                            interpolated_ms = cam_v_move_start_ms + (step * interpolation_interval_ms)
-                            interp_offset = cam_v_move_start_offset + (
-                                (cam_v_move_end_offset - cam_v_move_start_offset) * eased_t
-                            )
-                            cam_timeline = TimelineObject()
-                            cam_timeline.hit_ms = interpolated_ms
-                            cam_timeline.cam_v_offset = interp_offset
-                            curr_timeline.append(cam_timeline)
-                        cam_v_offset = cam_v_move_end_offset
-                        cam_v_move_active = False
-                    continue
-
-                # Zoom Commands
-                if part.startswith('#CAMZOOMSTART'):
-                    parts = part[14:].split(',')
-                    if len(parts) >= 4:
-                        cam_zoom_start = float(parts[0].strip())
-                        cam_zoom_end = float(parts[1].strip())
-                        cam_zoom_easing_point = parts[2].strip()
-                        cam_zoom_easing_function = parts[3].strip()
-                        cam_zoom_move_active = True
-                        cam_zoom_move_start_ms = self.current_ms
-                        cam_zoom = cam_zoom_start
-                    continue
-                if part.startswith('#CAMZOOMEND'):
-                    if cam_zoom_move_active:
-                        cam_zoom_move_duration_ms = self.current_ms - cam_zoom_move_start_ms
-                        interpolation_interval_ms = 8
-                        num_steps = int(cam_zoom_move_duration_ms / interpolation_interval_ms)
-                        for step in range(num_steps + 1):
-                            t = step / max(num_steps, 1)
-                            eased_t = self.apply_easing(t, cam_zoom_easing_point, cam_zoom_easing_function)
-                            interpolated_ms = cam_zoom_move_start_ms + (step * interpolation_interval_ms)
-                            interp_zoom = cam_zoom_start + (
-                                (cam_zoom_end - cam_zoom_start) * eased_t
-                            )
-                            cam_timeline = TimelineObject()
-                            cam_timeline.hit_ms = interpolated_ms
-                            cam_timeline.cam_zoom = interp_zoom
-                            curr_timeline.append(cam_timeline)
-                        cam_zoom = cam_zoom_end
-                        cam_zoom_move_active = False
-                    continue
-                if part.startswith('#CAMZOOM'):
-                    cam_zoom = float(part[9:])
-                    timeline_obj = TimelineObject()
-                    timeline_obj.hit_ms = self.current_ms
-                    timeline_obj.cam_zoom = cam_zoom
-                    bisect.insort(curr_timeline, timeline_obj, key=lambda x: x.hit_ms)
-                    continue
-
-                # Horizontal Scale Commands
-                if part.startswith('#CAMHSCALESTART'):
-                    parts = part[16:].split(',')
-                    if len(parts) >= 4:
-                        cam_h_scale_start = float(parts[0].strip())
-                        cam_h_scale_end = float(parts[1].strip())
-                        cam_h_scale_easing_point = parts[2].strip()
-                        cam_h_scale_easing_function = parts[3].strip()
-                        cam_h_scale_move_active = True
-                        cam_h_scale_move_start_ms = self.current_ms
-                        cam_h_scale = cam_h_scale_start
-                    continue
-                if part.startswith('#CAMHSCALEEND'):
-                    if cam_h_scale_move_active:
-                        cam_h_scale_move_duration_ms = self.current_ms - cam_h_scale_move_start_ms
-                        interpolation_interval_ms = 8
-                        num_steps = int(cam_h_scale_move_duration_ms / interpolation_interval_ms)
-                        for step in range(num_steps + 1):
-                            t = step / max(num_steps, 1)
-                            eased_t = self.apply_easing(t, cam_h_scale_easing_point, cam_h_scale_easing_function)
-                            interpolated_ms = cam_h_scale_move_start_ms + (step * interpolation_interval_ms)
-                            interp_scale = cam_h_scale_start + (
-                                (cam_h_scale_end - cam_h_scale_start) * eased_t
-                            )
-                            cam_timeline = TimelineObject()
-                            cam_timeline.hit_ms = interpolated_ms
-                            cam_timeline.cam_h_scale = interp_scale
-                            curr_timeline.append(cam_timeline)
-                        cam_h_scale = cam_h_scale_end
-                        cam_h_scale_move_active = False
-                    continue
-                if part.startswith('#CAMHSCALE'):
-                    cam_h_scale = float(part[11:])
-                    timeline_obj = TimelineObject()
-                    timeline_obj.hit_ms = self.current_ms
-                    timeline_obj.cam_h_scale = cam_h_scale
-                    bisect.insort(curr_timeline, timeline_obj, key=lambda x: x.hit_ms)
-                    continue
-
-                # Vertical Scale Commands
-                if part.startswith('#CAMVSCALESTART'):
-                    parts = part[16:].split(',')
-                    if len(parts) >= 4:
-                        cam_v_scale_start = float(parts[0].strip())
-                        cam_v_scale_end = float(parts[1].strip())
-                        cam_v_scale_easing_point = parts[2].strip()
-                        cam_v_scale_easing_function = parts[3].strip()
-                        cam_v_scale_move_active = True
-                        cam_v_scale_move_start_ms = self.current_ms
-                        cam_v_scale = cam_v_scale_start
-                    continue
-                if part.startswith('#CAMVSCALEEND'):
-                    if cam_v_scale_move_active:
-                        cam_v_scale_move_duration_ms = self.current_ms - cam_v_scale_move_start_ms
-                        interpolation_interval_ms = 8
-                        num_steps = int(cam_v_scale_move_duration_ms / interpolation_interval_ms)
-                        for step in range(num_steps + 1):
-                            t = step / max(num_steps, 1)
-                            eased_t = self.apply_easing(t, cam_v_scale_easing_point, cam_v_scale_easing_function)
-                            interpolated_ms = cam_v_scale_move_start_ms + (step * interpolation_interval_ms)
-                            interp_scale = cam_v_scale_start + (
-                                (cam_v_scale_end - cam_v_scale_start) * eased_t
-                            )
-                            cam_timeline = TimelineObject()
-                            cam_timeline.hit_ms = interpolated_ms
-                            cam_timeline.cam_v_scale = interp_scale
-                            curr_timeline.append(cam_timeline)
-                        cam_v_scale = cam_v_scale_end
-                        cam_v_scale_move_active = False
-                    continue
-                if part.startswith('#CAMVSCALE'):
-                    cam_v_scale = float(part[11:])
-                    timeline_obj = TimelineObject()
-                    timeline_obj.hit_ms = self.current_ms
-                    timeline_obj.cam_v_scale = cam_v_scale
-                    bisect.insort(curr_timeline, timeline_obj, key=lambda x: x.hit_ms)
-                    continue
-
-                # Rotation Commands
-                if part.startswith('#CAMROTATIONSTART'):
-                    parts = part[18:].split(',')
-                    if len(parts) >= 4:
-                        cam_rotation_start = float(parts[0].strip())
-                        cam_rotation_end = float(parts[1].strip())
-                        cam_rotation_easing_point = parts[2].strip()
-                        cam_rotation_easing_function = parts[3].strip()
-                        cam_rotation_move_active = True
-                        cam_rotation_move_start_ms = self.current_ms
-                        cam_rotation = cam_rotation_start
-                    continue
-                if part.startswith('#CAMROTATIONEND'):
-                    if cam_rotation_move_active:
-                        cam_rotation_move_duration_ms = self.current_ms - cam_rotation_move_start_ms
-                        interpolation_interval_ms = 8
-                        num_steps = int(cam_rotation_move_duration_ms / interpolation_interval_ms)
-                        for step in range(num_steps + 1):
-                            t = step / max(num_steps, 1)
-                            eased_t = self.apply_easing(t, cam_rotation_easing_point, cam_rotation_easing_function)
-                            interpolated_ms = cam_rotation_move_start_ms + (step * interpolation_interval_ms)
-                            interp_rotation = cam_rotation_start + (
-                                (cam_rotation_end - cam_rotation_start) * eased_t
-                            )
-                            cam_timeline = TimelineObject()
-                            cam_timeline.hit_ms = interpolated_ms
-                            cam_timeline.cam_rotation = interp_rotation
-                            curr_timeline.append(cam_timeline)
-                        cam_rotation = cam_rotation_end
-                        cam_rotation_move_active = False
-                    continue
-                if part.startswith('#CAMROTATION'):
-                    cam_rotation = float(part[13:])
-                    timeline_obj = TimelineObject()
-                    timeline_obj.hit_ms = self.current_ms
-                    timeline_obj.cam_rotation = cam_rotation
-                    bisect.insort(curr_timeline, timeline_obj, key=lambda x: x.hit_ms)
-                    continue
-                if part.startswith('#SECTION'):
-                    is_section_start = True
-                    continue
-
-                if part.startswith('#BRANCHSTART'):
-                    start_branch_ms = self.current_ms
-                    start_branch_bpm = bpm
-                    start_branch_time_sig = time_signature
-                    start_branch_x_scroll = x_scroll_modifier
-                    start_branch_y_scroll = y_scroll_modifier
-                    start_branch_barline = barline_display
-                    start_branch_gogo = gogo_time
-                    branch_balloon_count = count
-                    branch_params = part[13:]
-
-                    def set_branch_params(bar_list: list[Note], branch_params: str, section_bar: Optional[Note]):
-                        if bar_list and len(bar_list) > 1:
-                            section_index = -2
-                            if section_bar and section_bar.hit_ms < self.current_ms:
-                                if section_bar in bar_list:
-                                    section_index = bar_list.index(section_bar)
-                            bar_list[section_index].branch_params = branch_params
-                        elif bar_list:
-                            section_index = -1
-                            bar_list[section_index].branch_params = branch_params
-                        elif bar_list == []:
-                            bar_line = Note()
-                            bar_line.pixels_per_frame_x = get_pixels_per_frame(bpm * time_signature * x_scroll_modifier, time_signature*4, self.distance)
-                            bar_line.pixels_per_frame_y = get_pixels_per_frame(bpm * time_signature * y_scroll_modifier, time_signature*4, self.distance)
-                            pixels_per_ms = get_pixels_per_ms(bar_line.pixels_per_frame_x)
-
-                            bar_line.hit_ms = self.current_ms
-                            if pixels_per_ms == 0:
-                                bar_line.load_ms = bar_line.hit_ms
-                            else:
-                                bar_line.load_ms = bar_line.hit_ms - (self.distance / pixels_per_ms)
-                            bar_line.type = 0
-                            bar_line.display = False
-                            bar_line.gogo_time = gogo_time
-                            bar_line.branch_params = branch_params
-                            bar_list.append(bar_line)
-
-                    for bars in [curr_bar_list,
-                                    branch_m[-1].bars if branch_m else None,
-                                    branch_e[-1].bars if branch_e else None,
-                                    branch_n[-1].bars if branch_n else None]:
-                        set_branch_params(bars, branch_params, section_bar)
-                    if section_bar:
-                        section_bar = None
-                    continue
-
-                elif part.startswith('#BRANCHEND'):
-                    curr_note_list = master_notes.play_notes
-                    curr_draw_list = master_notes.draw_notes
-                    curr_bar_list = master_notes.bars
-                    curr_timeline = master_notes.timeline
-                    continue
-
-                if part == '#M':
-                    branch_m.append(NoteList())
-                    curr_note_list = branch_m[-1].play_notes
-                    curr_draw_list = branch_m[-1].draw_notes
-                    curr_bar_list = branch_m[-1].bars
-                    curr_timeline = branch_m[-1].timeline
-                    self.current_ms = start_branch_ms
-                    bpm = start_branch_bpm
-                    time_signature = start_branch_time_sig
-                    x_scroll_modifier = start_branch_x_scroll
-                    y_scroll_modifier = start_branch_y_scroll
-                    barline_display = start_branch_barline
-                    gogo_time = start_branch_gogo
-                    count = branch_balloon_count
-                    is_branching = True
-                    continue
-                elif part == '#E':
-                    branch_e.append(NoteList())
-                    curr_note_list = branch_e[-1].play_notes
-                    curr_draw_list = branch_e[-1].draw_notes
-                    curr_bar_list = branch_e[-1].bars
-                    curr_timeline = branch_e[-1].timeline
-                    self.current_ms = start_branch_ms
-                    bpm = start_branch_bpm
-                    time_signature = start_branch_time_sig
-                    x_scroll_modifier = start_branch_x_scroll
-                    y_scroll_modifier = start_branch_y_scroll
-                    barline_display = start_branch_barline
-                    gogo_time = start_branch_gogo
-                    count = branch_balloon_count
-                    is_branching = True
-                    continue
-                elif part == '#N':
-                    branch_n.append(NoteList())
-                    curr_note_list = branch_n[-1].play_notes
-                    curr_draw_list = branch_n[-1].draw_notes
-                    curr_bar_list = branch_n[-1].bars
-                    curr_timeline = branch_n[-1].timeline
-                    self.current_ms = start_branch_ms
-                    bpm = start_branch_bpm
-                    time_signature = start_branch_time_sig
-                    x_scroll_modifier = start_branch_x_scroll
-                    y_scroll_modifier = start_branch_y_scroll
-                    barline_display = start_branch_barline
-                    gogo_time = start_branch_gogo
-                    count = branch_balloon_count
-                    is_branching = True
-                    continue
-
-                if '#LYRIC' in part:
-                    lyric = part[6:]
-                    continue
-
-                if '#JPOSSCROLL' in part:
-                    parts = part.split()
-                    if len(parts) >= 4:
-                        duration_ms = float(parts[1]) * 1000
-                        distance_str = parts[2]
-                        direction = int(parts[3])
-                        delta_x = 0
-                        delta_y = 0
-                        if 'i' in distance_str:
-                            normalized = distance_str.replace('.i', 'j').replace('i', 'j')
-                            normalized = normalized.replace(',', '')
-                            c = complex(normalized)
-                            delta_x = c.real
-                            delta_y = c.imag
-                        else:
-                            distance = float(distance_str)
-                            delta_x = distance
-                            delta_y = 0
-                        if direction == 0:
-                            delta_x = -delta_x
-                            delta_y = -delta_y
-
-                        for obj in reversed(curr_timeline):
-                            if hasattr(obj, 'delta_x') and hasattr(obj, 'delta_y'):
-                                if obj.hit_ms > self.current_ms:
-                                    available_time = self.current_ms - obj.load_ms
-                                    total_duration = obj.hit_ms - obj.load_ms
-                                    ratio = min(1.0, available_time / total_duration) if total_duration > 0 else 1.0
-                                    obj.delta_x *= ratio
-                                    obj.delta_y *= ratio
-                                    obj.hit_ms = self.current_ms
-                                    break
-
-                        jpos_scroll = TimelineObject()
-                        jpos_scroll.load_ms = self.current_ms
-                        jpos_scroll.hit_ms = self.current_ms + duration_ms
-                        jpos_scroll.judge_pos_x = judge_pos_x
-                        jpos_scroll.judge_pos_y = judge_pos_y
-                        jpos_scroll.delta_x = delta_x
-                        jpos_scroll.delta_y = delta_y
-                        curr_timeline.append(jpos_scroll)
-
-                        judge_pos_x += delta_x
-                        judge_pos_y += delta_y
-                    continue
-                elif '#NMSCROLL' in part:
-                    scroll_type = ScrollType.NMSCROLL
-                    continue
-                elif '#BMSCROLL' in part:
-                    scroll_type = ScrollType.BMSCROLL
-                    continue
-                elif '#HBSCROLL' in part:
-                    scroll_type = ScrollType.HBSCROLL
-                    continue
-                elif '#MEASURE' in part:
-                    divisor = part.find('/')
-                    time_signature = float(part[9:divisor]) / float(part[divisor+1:])
-                    continue
-                elif '#SCROLL' in part:
-                    if scroll_type != ScrollType.BMSCROLL:
-                        scroll_value = part[7:]
-                        if 'i' in scroll_value:
-                            normalized = scroll_value.replace('.i', 'j').replace('i', 'j')
-                            normalized = normalized.replace(',', '')
-                            c = complex(normalized)
-                            x_scroll_modifier = c.real
-                            y_scroll_modifier = c.imag
-                        else:
-                            x_scroll_modifier = float(scroll_value)
-                            y_scroll_modifier = 0.0
-                    continue
-                elif '#BPMCHANGE' in part:
-                    parsed_bpm = float(part[11:])
-                    if scroll_type == ScrollType.BMSCROLL or scroll_type == ScrollType.HBSCROLL:
-                        # Do not modify bpm, it needs to be changed live by bpmchange
-                        bpmchange = parsed_bpm / bpmchange_last_bpm
-                        bpmchange_last_bpm = parsed_bpm
-
-                        bpmchange_timeline = TimelineObject()
-                        bpmchange_timeline.hit_ms = self.current_ms
-                        bpmchange_timeline.bpmchange = bpmchange
-                        bisect.insort(curr_timeline, bpmchange_timeline, key=lambda x: x.hit_ms)
-                    else:
-                        timeline_obj = TimelineObject()
-                        timeline_obj.hit_ms = self.current_ms
-                        timeline_obj.bpm = parsed_bpm
-                        bpm = parsed_bpm
-                        bisect.insort(curr_timeline, timeline_obj, key=lambda x: x.hit_ms)
-                    continue
-                elif '#BARLINEOFF' in part:
-                    barline_display = False
-                    continue
-                elif '#BARLINEON' in part:
-                    barline_display = True
-                    continue
-                elif '#GOGOSTART' in part:
-                    gogo_time = True
-                    continue
-                elif '#GOGOEND' in part:
-                    gogo_time = False
-                    continue
-                elif part.startswith("#DELAY"):
-                    delay_ms = float(part[6:]) * 1000
-                    if scroll_type == ScrollType.BMSCROLL or scroll_type == ScrollType.HBSCROLL:
-                        if delay_ms <= 0:
-                            # No changes if not positive
-                            pass
-                        else:
-                            # Do not modify current_ms, it will be modified live
-                            delay_current += delay_ms
-
-                            # Delays will be combined between notes, and attached to previous note
-                    else:
-                        self.current_ms += delay_ms
-                    continue
-                elif part.startswith("#SUDDEN"):
-                    parts = part.split()
-                    if len(parts) >= 3:
-                        appear_duration = float(parts[1])
-                        moving_duration = float(parts[2])
-
-                        sudden_appear = appear_duration * 1000
-                        sudden_moving = moving_duration * 1000
-
-                        if sudden_appear == 0:
-                            sudden_appear = float('inf')
-                        if sudden_moving == 0:
-                            sudden_moving = float('inf')
+                if part.startswith('#'):
+                    for cmd_prefix, handler in commands.items():
+                        if part.startswith(cmd_prefix):
+                            print(cmd_prefix)
+                            value = part[len(cmd_prefix):].strip()
+                            handler(value, state)
+                            break
                     continue
                 elif len(part) > 0 and not part[0].isdigit():
                     logger.warning(f"Unrecognized command: {part} in TJA {self.file_path}")
                     continue
 
-                ms_per_measure = get_ms_per_measure(bpm, time_signature)
-                bar_line = Note()
+                ms_per_measure = get_ms_per_measure(state.bpm, state.time_signature)
 
-                bar_line.pixels_per_frame_x = get_pixels_per_frame(bpm * time_signature * x_scroll_modifier, time_signature*4, self.distance)
-                bar_line.pixels_per_frame_y = get_pixels_per_frame(bpm * time_signature * y_scroll_modifier, time_signature*4, self.distance)
-                pixels_per_ms = get_pixels_per_ms(max(bar_line.pixels_per_frame_x, bar_line.pixels_per_frame_y))
-
-                bar_line.hit_ms = self.current_ms
-                if pixels_per_ms == 0:
-                    bar_line.load_ms = bar_line.hit_ms
-                else:
-                    bar_line.load_ms = bar_line.hit_ms - (self.distance / pixels_per_ms)
-                bar_line.type = 0
-                bar_line.display = barline_display
-                bar_line.gogo_time = gogo_time
-                if barline_added:
-                    bar_line.display = False
-
-                if is_branching:
-                    bar_line.is_branch_start = True
-                    is_branching = False
-
-                if is_section_start:
-                    section_bar = bar_line
-                    is_section_start = False
-
-                bisect.insort(curr_bar_list, bar_line, key=lambda x: x.load_ms)
-                barline_added = True
+                bar = self.add_bar(state)
+                state.curr_bar_list.append(bar)
+                state.barline_added = True
 
                 if len(part) == 0:
                     self.current_ms += ms_per_measure
@@ -1347,76 +1072,32 @@ class TJAParser:
                     increment = ms_per_measure / bar_length
 
                 for item in part:
-                    if item == '.':
-                        continue
                     if item == '0' or (not item.isdigit()):
-                        delay_last_note_ms = self.current_ms
+                        state.delay_last_note_ms = self.current_ms
                         self.current_ms += increment
                         continue
-                    if item == '9' and curr_note_list and curr_note_list[-1].type == 9:
-                        delay_last_note_ms = self.current_ms
+                    if item == '9' and state.curr_note_list and state.curr_note_list[-1].type == 9:
+                        state.delay_last_note_ms = self.current_ms
                         self.current_ms += increment
                         continue
-
-                    if delay_current != 0:
-                        # logger.debug(delay_current)
+                    if state.delay_current != 0:
                         delay_timeline = TimelineObject()
-                        delay_timeline.hit_ms = delay_last_note_ms
-                        delay_timeline.delay = delay_current
-                        bisect.insort(curr_timeline, delay_timeline, key=lambda x: x.hit_ms)
+                        delay_timeline.hit_ms = state.delay_last_note_ms
+                        delay_timeline.delay = state.delay_current
+                        state.curr_timeline.append(delay_timeline)
 
-                        delay_current = 0
+                        state.delay_current = 0
 
-
-                    note = Note()
-                    delay_last_note_ms = self.current_ms
-                    note.hit_ms = self.current_ms
-                    note.display = True
-                    note.pixels_per_frame_x = bar_line.pixels_per_frame_x
-                    note.pixels_per_frame_y = bar_line.pixels_per_frame_y
-                    pixels_per_ms = get_pixels_per_ms(max(note.pixels_per_frame_x, note.pixels_per_frame_y))
-                    note.load_ms = (note.hit_ms if pixels_per_ms == 0
-                                    else note.hit_ms - (self.distance / pixels_per_ms))
-                    note.type = int(item)
-                    note.index = index
-                    note.gogo_time = gogo_time
-                    note.moji = -1
-                    note.lyric = lyric
-
-                    if sudden_appear > 0 or sudden_moving > 0:
-                        note.sudden_appear_ms = sudden_appear
-                        note.sudden_moving_ms = sudden_moving
-
-                    if item in {'5', '6'}:
-                        note = Drumroll(note)
-                        note.color = 255
-                    elif item in {'7', '9'}:
-                        count += 1
-                        if balloon is None:
-                            raise Exception("Balloon note found, but no count was specified")
-                        if item == '9':
-                            note = Balloon(note, is_kusudama=True)
-                        else:
-                            note = Balloon(note)
-                        note.count = 1 if not balloon else balloon.pop(0)
-                    elif item == '8':
-                        if prev_note is None:
-                            raise ValueError("No previous note found")
-                        new_pixels_per_ms = max(prev_note.pixels_per_frame_x, prev_note.pixels_per_frame_y) / (1000 / 60)
-                        if new_pixels_per_ms == 0:
-                            note.load_ms = note.hit_ms
-                        else:
-                            note.load_ms = note.hit_ms - (self.distance / new_pixels_per_ms)
-                        note.pixels_per_frame_x = prev_note.pixels_per_frame_x
+                    note = self.add_note(item, state)
 
                     self.current_ms += increment
-                    curr_note_list.append(note)
-                    bisect.insort(curr_draw_list, note, key=lambda x: x.load_ms)
-                    self.get_moji(curr_note_list, ms_per_measure)
-                    index += 1
-                    prev_note = note
+                    state.curr_note_list.append(note)
+                    state.curr_draw_list.append(note)
+                    self.get_moji(state.curr_note_list, ms_per_measure)
+                    state.index += 1
+                    state.prev_note = note
 
-        return master_notes, branch_m, branch_e, branch_n
+        return self.master_notes, self.branch_m, self.branch_e, self.branch_n
 
     def hash_note_data(self, notes: NoteList):
         """Hashes the note data for the given NoteList."""
@@ -1445,17 +1126,9 @@ def modifier_speed(notes: NoteList, value: float):
     modded_notes = notes.draw_notes.copy()
     modded_bars = notes.bars.copy()
     for note in modded_notes:
-        note.pixels_per_frame_x *= value
-        pixels_per_ms = get_pixels_per_ms(note.pixels_per_frame_x)
-        if pixels_per_ms == 0:
-            continue
-        note.load_ms = note.hit_ms - (866 * global_tex.screen_scale / pixels_per_ms)
+        note.scroll_x *= value
     for bar in modded_bars:
-        bar.pixels_per_frame_x *= value
-        pixels_per_ms = get_pixels_per_ms(bar.pixels_per_frame_x)
-        if pixels_per_ms == 0:
-            continue
-        bar.load_ms = bar.hit_ms - (866 * global_tex.screen_scale / pixels_per_ms)
+        bar.scroll_x *= value
     return modded_notes, modded_bars
 
 def modifier_display(notes: NoteList):

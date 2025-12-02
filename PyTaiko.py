@@ -1,4 +1,3 @@
-from scenes.game2 import GameScreen2
 import logging
 import os
 from pathlib import Path
@@ -273,7 +272,7 @@ def main():
     song_select_screen = SongSelectScreen('song_select')
     song_select_screen_2p = TwoPlayerSongSelectScreen('song_select')
     load_screen = LoadScreen('loading')
-    game_screen = GameScreen2('game')
+    game_screen = GameScreen('game')
     game_screen_2p = TwoPlayerGameScreen('game')
     game_screen_practice = PracticeGameScreen('game')
     practice_select_screen = PracticeSongSelectScreen('song_select')
