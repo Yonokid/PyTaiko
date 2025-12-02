@@ -148,23 +148,22 @@ class TJAParser2(TJAParser):
         return registry
 
     def handle_measure(self, part: str, state: ParserState):
-        divisor = part.find('/')
-        state.time_signature = float(part[9:divisor]) / float(part[divisor+1:])
+        numerator, denominator = part.split('/')
+        state.time_signature = float(numerator) / float(denominator)
 
     def handle_scroll(self, part: str, state: ParserState):
-        scroll_value = part[7:]
-        if 'i' in scroll_value:
-            normalized = scroll_value.replace('.i', 'j').replace('i', 'j')
+        if 'i' in part:
+            normalized = part.replace('.i', 'j').replace('i', 'j')
             normalized = normalized.replace(',', '')
             c = complex(normalized)
             state.scroll_x_modifier = c.real
             state.scroll_y_modifier = c.imag
         else:
-            state.scroll_x_modifier = float(scroll_value)
+            state.scroll_x_modifier = float(part)
             state.scroll_y_modifier = 0.0
 
     def handle_bpmchange(self, part: str, state: ParserState):
-        parsed_bpm = float(part[11:])
+        parsed_bpm = float(part)
         if state.scroll_type == ScrollType.BMSCROLL or state.scroll_type == ScrollType.HBSCROLL:
             # Do not modify bpm, it needs to be changed live by bpmchange
             bpmchange = parsed_bpm / state.bpmchange_last_bpm
@@ -252,7 +251,8 @@ class TJAParser2(TJAParser):
                 if part.startswith('#'):
                     for cmd_prefix, handler in commands.items():
                         if part.startswith(cmd_prefix):
-                            handler(part, state)
+                            value = part[len(cmd_prefix):].strip()
+                            handler(value, state)
                             break
                     continue
                 elif len(part) > 0 and not part[0].isdigit():
