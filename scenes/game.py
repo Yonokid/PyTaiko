@@ -1123,6 +1123,7 @@ class Player:
             self.evaluate_branch(ms_from_start)
 
         # Get the next note from any of the three lists for BPM and gogo time updates
+        '''
         next_note = None
         candidates = []
         if self.don_notes:
@@ -1144,6 +1145,7 @@ class Player:
                 self.is_gogo_time = False
                 self.gogo_time = None
                 self.chara.set_animation('gogo_stop')
+        '''
         if self.gauge is None:
             self.chara.update(current_time, self.bpm, False, False)
         else:
