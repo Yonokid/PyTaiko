@@ -149,6 +149,7 @@ class DanGameScreen(GameScreen):
             'judgeperfect': self.player_1.good_count,
             'judgegood': self.player_1.ok_count + self.player_1.bad_count,
             'judgebad': self.player_1.bad_count,
+            'roll': self.player_1.total_drumroll,
             'hit': self.player_1.good_count + self.player_1.ok_count + self.player_1.total_drumroll,
             'score': self.player_1.score,
             'combo': self.player_1.max_combo
