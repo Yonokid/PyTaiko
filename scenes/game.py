@@ -59,6 +59,7 @@ class Judgments(IntEnum):
 
 class GameScreen(Screen):
     JUDGE_X = 414 * tex.screen_scale
+    JUDGE_Y = 256 * tex.screen_scale
     def on_screen_start(self):
         super().on_screen_start()
         self.mask_shader = ray.load_shader("shader/outline.vs", "shader/mask.fs")
@@ -879,8 +880,8 @@ class Player:
         if self.is_drumroll:
             self.check_drumroll(drum_type, background, current_time)
         elif self.is_balloon:
-            if not isinstance(curr_note, Balloon):
-                raise Exception("Balloon mode entered but current note is not balloon")
+            #if not isinstance(curr_note, Balloon):
+                #raise Exception("Balloon mode entered but current note is not balloon")
             self.check_balloon(drum_type, curr_note, current_time)
         else:
             self.curr_drumroll_count = 0

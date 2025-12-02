@@ -1,37 +1,19 @@
 import bisect
-from enum import IntEnum
 import hashlib
 from dataclasses import dataclass, field, fields
 
-from libs.tja import NoteList, TJAParser, TimelineObject, get_ms_per_measure
-
-class NoteType(IntEnum):
-    NONE = 0
-    DON = 1
-    KAT = 2
-    DON_L = 3
-    KAT_L = 4
-    ROLL_HEAD = 5
-    ROLL_HEAD_L = 6
-    BALLOON_HEAD = 7
-    TAIL = 8
-    KUSUDAMA = 9
-
-class ScrollType(IntEnum):
-    NMSCROLL = 0
-    BMSCROLL = 1
-    HBSCROLL = 2
+from libs.tja import NoteList, ScrollType, TJAParser, TimelineObject, get_ms_per_measure
 
 @dataclass()
 class Note:
     type: int = field(init=False)
     hit_ms: float = field(init=False)
-    display: bool = field(init=False)
-    index: int = field(init=False)
-    moji: int = field(init=False)
     bpm: float = field(init=False)
     scroll_x: float = field(init=False)
     scroll_y: float = field(init=False)
+    display: bool = field(init=False)
+    index: int = field(init=False)
+    moji: int = field(init=False)
 
     def __lt__(self, other):
         return self.hit_ms < other.hit_ms
@@ -135,89 +117,140 @@ class Balloon(Note):
         return hash_string.encode('utf-8')
 
 class TJAParser2(TJAParser):
+    def _build_command_registry(self):
+            """Auto-discover command handlers based on naming convention."""
+            registry = {}
+            for name in dir(self):
+                if name.startswith('handle_'):
+                    cmd_name = '#' + name[7:].upper()
+                    registry[cmd_name] = getattr(self, name)
+            return registry
+
+    def handle_measure(self, part: str, state: dict):
+        divisor = part.find('/')
+        state["time_signature"] = float(part[9:divisor]) / float(part[divisor+1:])
+
+    def handle_scroll(self, part: str, state: dict):
+        scroll_value = part[7:]
+        if 'i' in scroll_value:
+            normalized = scroll_value.replace('.i', 'j').replace('i', 'j')
+            normalized = normalized.replace(',', '')
+            c = complex(normalized)
+            state["scroll_x_modifier"] = c.real
+            state["scroll_y_modifier"] = c.imag
+        else:
+            state["scroll_x_modifier"] = float(scroll_value)
+            state["scroll_y_modifier"] = 0.0
+
+    def handle_bpmchange(self, part: str, state: dict):
+        parsed_bpm = float(part[11:])
+        if state["scroll_type"] == ScrollType.BMSCROLL or state["scroll_type"] == ScrollType.HBSCROLL:
+            # Do not modify bpm, it needs to be changed live by bpmchange
+            bpmchange = parsed_bpm / state["bpmchange_last_bpm"]
+            state["bpmchange_last_bpm"] = parsed_bpm
+
+            bpmchange_timeline = TimelineObject()
+            bpmchange_timeline.hit_ms = self.current_ms
+            bpmchange_timeline.bpmchange = bpmchange
+            state["curr_timeline"].append(bpmchange_timeline)
+        else:
+            timeline_obj = TimelineObject()
+            timeline_obj.hit_ms = self.current_ms
+            timeline_obj.bpm = parsed_bpm
+            state["bpm"] = parsed_bpm
+            state["curr_timeline"].append(timeline_obj)
+
+    def add_bar(self, state: dict):
+        bar_line = Note()
+
+        bar_line.hit_ms = self.current_ms
+        bar_line.type = 0
+        bar_line.display = state["barline_display"]
+        bar_line.bpm = state["bpm"]
+        bar_line.scroll_x = state["scroll_x_modifier"]
+        bar_line.scroll_y = state["scroll_y_modifier"]
+
+        if state["barline_added"]:
+            bar_line.display = False
+
+        return bar_line
+
+    def add_note(self, item: str, state: dict):
+        note = Note()
+        note.hit_ms = self.current_ms
+        note.display = True
+        note.type = int(item)
+        note.index = state["index"]
+        note.bpm = state["bpm"]
+        note.scroll_x = state["scroll_x_modifier"]
+        note.scroll_y = state["scroll_y_modifier"]
+
+        if item in {'5', '6'}:
+            note = Drumroll(note)
+            note.color = 255
+        elif item in {'7', '9'}:
+            state["balloon_index"] += 1
+            if state["balloons"] is None:
+                raise Exception("Balloon note found, but no count was specified")
+            if item == '9':
+                note = Balloon(note, is_kusudama=True)
+            else:
+                note = Balloon(note)
+            note.count = 1 if not state["balloons"] else state["balloons"].pop(0)
+        elif item == '8':
+            if state["prev_note"] is None:
+                raise ValueError("No previous note found")
+
+        return note
+
     def notes_to_position(self, diff: int):
         """Parse a TJA's notes into a NoteList."""
+        commands = self._build_command_registry()
         master_notes = NoteList()
         notes = self.data_to_notes(diff)
-        balloon = self.metadata.course_data[diff].balloon.copy()
-        count = 0
-        index = 0
-        time_signature = 4/4
-        bpm = self.metadata.bpm
-        scroll_x_modifier = 1
-        scroll_y_modifier = 0
-        barline_display = True
-        curr_note_list = master_notes.play_notes
-        curr_draw_list = master_notes.draw_notes
-        curr_bar_list = master_notes.bars
-        curr_timeline = master_notes.timeline
+
+        state = {
+            'time_signature': 4/4,
+            'bpm': self.metadata.bpm,
+            'scroll_x_modifier': 1,
+            'scroll_y_modifier': 0,
+            'scroll_type': ScrollType.NMSCROLL,
+            'bpmchange_last_bpm': self.metadata.bpm,
+            'barline_display': True,
+            'curr_note_list': master_notes.play_notes,
+            'curr_draw_list': master_notes.draw_notes,
+            'curr_bar_list': master_notes.bars,
+            'curr_timeline': master_notes.timeline,
+            'index': 0,
+            'balloons': self.metadata.course_data[diff].balloon.copy(),
+            'balloon_index': 0,
+            'prev_note': None,
+            'barline_added': False
+        }
         init_bpm = TimelineObject()
         init_bpm.hit_ms = self.current_ms
-        init_bpm.bpm = bpm
-        curr_timeline.append(init_bpm)
-        prev_note = None
-        scroll_type = ScrollType.NMSCROLL
-
-        bpmchange_last_bpm = bpm
+        init_bpm.bpm = state['bpm']
+        state['curr_timeline'].append(init_bpm)
 
         for bar in notes:
             bar_length = sum(len(part) for part in bar if '#' not in part)
-            barline_added = False
+            state['barline_added'] = False
 
             for part in bar:
-                if '#MEASURE' in part:
-                    divisor = part.find('/')
-                    time_signature = float(part[9:divisor]) / float(part[divisor+1:])
-                    continue
-                elif '#SCROLL' in part:
-                    if scroll_type != ScrollType.BMSCROLL:
-                        scroll_value = part[7:]
-                        if 'i' in scroll_value:
-                            normalized = scroll_value.replace('.i', 'j').replace('i', 'j')
-                            normalized = normalized.replace(',', '')
-                            c = complex(normalized)
-                            scroll_x_modifier = c.real
-                            scroll_y_modifier = c.imag
-                        else:
-                            scroll_x_modifier = float(scroll_value)
-                            scroll_y_modifier = 0.0
-                    continue
-                elif '#BPMCHANGE' in part:
-                    parsed_bpm = float(part[11:])
-                    if scroll_type == ScrollType.BMSCROLL or scroll_type == ScrollType.HBSCROLL:
-                        # Do not modify bpm, it needs to be changed live by bpmchange
-                        bpmchange = parsed_bpm / bpmchange_last_bpm
-                        bpmchange_last_bpm = parsed_bpm
-
-                        bpmchange_timeline = TimelineObject()
-                        bpmchange_timeline.hit_ms = self.current_ms
-                        bpmchange_timeline.bpmchange = bpmchange
-                        bisect.insort(curr_timeline, bpmchange_timeline, key=lambda x: x.hit_ms)
-                    else:
-                        timeline_obj = TimelineObject()
-                        timeline_obj.hit_ms = self.current_ms
-                        timeline_obj.bpm = parsed_bpm
-                        bpm = parsed_bpm
-                        bisect.insort(curr_timeline, timeline_obj, key=lambda x: x.hit_ms)
+                if part.startswith('#'):
+                    for cmd_prefix, handler in commands.items():
+                        if part.startswith(cmd_prefix):
+                            handler(part, state)
+                            break
                     continue
                 elif len(part) > 0 and not part[0].isdigit():
                     continue
 
-                ms_per_measure = get_ms_per_measure(bpm, time_signature)
-                bar_line = Note()
+                ms_per_measure = get_ms_per_measure(state["bpm"], state["time_signature"])
 
-                bar_line.hit_ms = self.current_ms
-                bar_line.type = 0
-                bar_line.display = barline_display
-                bar_line.bpm = bpm
-                bar_line.scroll_x = scroll_x_modifier
-                bar_line.scroll_y = scroll_y_modifier
-
-                if barline_added:
-                    bar_line.display = False
-
-                curr_bar_list.append(bar_line)
-                barline_added = True
+                bar = self.add_bar(state)
+                state["curr_bar_list"].append(bar)
+                state["barline_added"] = True
 
                 if len(part) == 0:
                     self.current_ms += ms_per_measure
@@ -230,36 +263,13 @@ class TJAParser2(TJAParser):
                         self.current_ms += increment
                         continue
 
-                    note = Note()
-                    note.hit_ms = self.current_ms
-                    note.display = True
-                    note.type = int(item)
-                    note.index = index
-                    note.bpm = bpm
-                    note.scroll_x = scroll_x_modifier
-                    note.scroll_y = scroll_y_modifier
-
-                    if item in {'5', '6'}:
-                        note = Drumroll(note)
-                        note.color = 255
-                    elif item in {'7', '9'}:
-                        count += 1
-                        if balloon is None:
-                            raise Exception("Balloon note found, but no count was specified")
-                        if item == '9':
-                            note = Balloon(note, is_kusudama=True)
-                        else:
-                            note = Balloon(note)
-                        note.count = 1 if not balloon else balloon.pop(0)
-                    elif item == '8':
-                        if prev_note is None:
-                            raise ValueError("No previous note found")
+                    note = self.add_note(item, state)
 
                     self.current_ms += increment
-                    curr_note_list.append(note)
-                    curr_draw_list.append(note)
-                    self.get_moji(curr_note_list, ms_per_measure)
-                    index += 1
-                    prev_note = note
+                    state["curr_note_list"].append(note)
+                    state["curr_draw_list"].append(note)
+                    self.get_moji(state["curr_note_list"], ms_per_measure)
+                    state["index"] += 1
+                    state["prev_note"] = note
 
         return master_notes, [master_notes], [master_notes], [master_notes]
