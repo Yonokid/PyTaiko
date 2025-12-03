@@ -766,9 +766,8 @@ class Player:
         note = self.current_notes_draw[0]
         if note.type in {NoteType.ROLL_HEAD, NoteType.ROLL_HEAD_L, NoteType.BALLOON_HEAD, NoteType.KUSUDAMA} and len(self.current_notes_draw) > 1:
             note = self.current_notes_draw[1]
-        if current_ms > note.hit_ms + 2000:
-            if note.type == NoteType.TAIL:
-                self.current_notes_draw.pop(0)
+        position = self.get_position_x(tex.screen_width, current_ms, note.hit_ms, note.pixels_per_frame_x)
+        if position < GameScreen.JUDGE_X + (650 * tex.screen_scale):
             self.current_notes_draw.pop(0)
 
     def note_manager(self, current_ms: float, background: Optional[Background]):
