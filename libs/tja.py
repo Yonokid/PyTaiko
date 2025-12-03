@@ -83,6 +83,8 @@ class Note:
     """
     type: int = field(init=False)
     hit_ms: float = field(init=False)
+    load_ms: float = field(init=False)
+    unload_ms: float = field(init=False)
     bpm: float = field(init=False)
     scroll_x: float = field(init=False)
     scroll_y: float = field(init=False)
@@ -1050,7 +1052,6 @@ class TJAParser:
                 if part.startswith('#'):
                     for cmd_prefix, handler in commands.items():
                         if part.startswith(cmd_prefix):
-                            print(cmd_prefix)
                             value = part[len(cmd_prefix):].strip()
                             handler(value, state)
                             break

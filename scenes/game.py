@@ -416,6 +416,35 @@ class Player:
         self.bpm = 120
         if self.timeline and hasattr(self.timeline[self.timeline_index], 'bpm'):
             self.bpm = self.timeline[self.timeline_index].bpm
+        for note in chain(self.draw_note_list, self.draw_bar_list):
+            distance_x = tex.screen_width - GameScreen.JUDGE_X
+            distance_y = abs(note.scroll_y * ((tex.screen_width - GameScreen.JUDGE_X)/tex.screen_width) * tex.screen_width)
+            total_distance = math.sqrt(distance_x**2 + distance_y**2)
+
+            pixels_per_ms = note.bpm / 240000 * abs(note.scroll_x) * ((tex.screen_width - tex.textures["notes"]["1"].width//2) - GameScreen.JUDGE_X) * tex.screen_scale
+
+            if pixels_per_ms == 0:
+                pixels_per_ms = note.bpm / 240000 * abs(note.scroll_y) * ((tex.screen_width - tex.textures["notes"]["1"].width//2) - GameScreen.JUDGE_X) * tex.screen_scale
+
+            if note.scroll_x >= 0:
+                base_load_offset = total_distance / pixels_per_ms
+                note.unload_ms = note.hit_ms + (GameScreen.JUDGE_X / pixels_per_ms)
+            else:
+                base_load_offset = GameScreen.JUDGE_X / pixels_per_ms
+                note.unload_ms = note.hit_ms + (total_distance / pixels_per_ms)
+
+            if hasattr(note, 'sudden_appear_ms') and hasattr(note, 'sudden_moving_ms') and note.sudden_appear_ms != float('inf'):
+                note.load_ms = note.hit_ms - note.sudden_appear_ms
+                if note.scroll_x >= 0:
+                    note.unload_ms = note.hit_ms + note.sudden_appear_ms - note.sudden_moving_ms + (GameScreen.JUDGE_X / pixels_per_ms)
+                else:
+                    note.unload_ms = note.hit_ms + note.sudden_appear_ms - note.sudden_moving_ms + (total_distance / pixels_per_ms)
+            else:
+                note.load_ms = note.hit_ms - base_load_offset
+
+        self.draw_note_list = deque(sorted(self.draw_note_list, key=lambda n: n.load_ms))
+        self.draw_bar_list = deque(sorted(self.draw_bar_list, key=lambda n: n.load_ms))
+
         # Handle HBSCROLL, BMSCROLL (pre-modify hit_ms, so that notes can't be literally hit, but are still visually different) - basically it applies the transformations of #BPMCHANGE and #DELAY to hit_ms, so that notes can't be hit even if its visaulyl
         for i, o in enumerate(self.timeline):
             if hasattr(o, 'bpmchange'):
@@ -480,7 +509,7 @@ class Player:
 
 
     def get_position_y(self, note, current_ms):
-        speedy = note.bpm / 240000 * note.scroll_y * (tex.screen_width - GameScreen.JUDGE_Y) * tex.screen_scale
+        speedy = note.bpm / 240000 * note.scroll_y * ((tex.screen_width - GameScreen.JUDGE_X)/tex.screen_width) * tex.screen_width
         return (note.hit_ms - current_ms) * speedy
 
     '''
@@ -619,21 +648,16 @@ class Player:
         """Manages the bars and removes if necessary
         Also sets branch conditions"""
         #Add bar to current_bars list if it is ready to be shown on screen
-        if self.draw_bar_list and current_ms >= self.draw_bar_list[0].hit_ms - 10000:
-            self.current_bars.append(self.draw_bar_list.popleft())
+        if self.draw_bar_list and current_ms >= self.draw_bar_list[0].load_ms:
+            bisect.insort_left(self.current_bars, self.draw_bar_list.popleft(), key=lambda x: x.load_ms)
 
         #If a bar is off screen, remove it
         if not self.current_bars:
             return
 
-        # More efficient removal with early exit
-        removal_threshold = GameScreen.JUDGE_X - (650 * tex.screen_scale)
-        bars_to_keep = []
-        for bar in self.current_bars:
-            position = self.get_position_x(bar, current_ms)
-            if position >= removal_threshold:
-                bars_to_keep.append(bar)
-        self.current_bars = bars_to_keep
+        bar = self.current_bars[0]
+        if current_ms >= bar.unload_ms:
+            self.current_bars.pop(0)
         if self.current_bars and hasattr(self.current_bars[-1], 'branch_params'):
             self.branch_condition, e_req, m_req = self.current_bars[-1].branch_params.split(',')
             delattr(self.current_bars[-1], 'branch_params')
@@ -742,16 +766,13 @@ class Player:
 
     def draw_note_manager(self, current_ms: float):
         """Manages the draw_notes and removes if necessary"""
-        if self.draw_note_list and current_ms >= self.draw_note_list[0].hit_ms - 10000:
+        if self.draw_note_list and current_ms >= self.draw_note_list[0].load_ms:
             current_note = self.draw_note_list.popleft()
             if 5 <= current_note.type <= 7:
                 bisect.insort_left(self.current_notes_draw, current_note, key=lambda x: x.index)
-                try:
-                    tail_note = next((note for note in self.draw_note_list if note.type == NoteType.TAIL))
-                    bisect.insort_left(self.current_notes_draw, tail_note, key=lambda x: x.index)
-                    self.draw_note_list.remove(tail_note)
-                except Exception as e:
-                    raise(e)
+                tail_note = next((note for note in self.draw_note_list if note.type == NoteType.TAIL))
+                bisect.insort_left(self.current_notes_draw, tail_note, key=lambda x: x.index)
+                self.draw_note_list.remove(tail_note)
             else:
                 bisect.insort_left(self.current_notes_draw, current_note, key=lambda x: x.index)
 
@@ -764,7 +785,7 @@ class Player:
         note = self.current_notes_draw[0]
         if note.type in {NoteType.ROLL_HEAD, NoteType.ROLL_HEAD_L, NoteType.BALLOON_HEAD, NoteType.KUSUDAMA} and len(self.current_notes_draw) > 1:
             note = self.current_notes_draw[1]
-        if self.get_position_x(note, current_ms) < GameScreen.JUDGE_X:
+        if current_ms >= note.unload_ms:
             self.current_notes_draw.pop(0)
 
     def note_manager(self, current_ms: float, background: Optional[Background]):
@@ -1126,21 +1147,30 @@ class Player:
 
     def draw_drumroll(self, current_ms: float, head: Drumroll, current_eighth: int):
         """Draws a drumroll in the player's lane"""
+        if hasattr(head, 'sudden_appear_ms') and hasattr(head, 'sudden_moving_ms'):
+            appear_ms = head.hit_ms - head.sudden_appear_ms
+            moving_start_ms = head.hit_ms - head.sudden_moving_ms
+            if current_ms < appear_ms:
+                return
+            if current_ms < moving_start_ms:
+                current_ms = moving_start_ms
         start_position = self.get_position_x(head, current_ms)
         tail = next((note for note in self.current_notes_draw[1:] if note.type == NoteType.TAIL and note.index > head.index), self.current_notes_draw[1])
         is_big = int(head.type == NoteType.ROLL_HEAD_L)
         end_position = self.get_position_x(tail, current_ms)
         length = end_position - start_position
         color = ray.Color(255, head.color, head.color, 255)
-        y = tex.skin_config["notes"].y + self.get_position_y(head, current_ms)
+        y = tex.skin_config["notes"].y + self.get_position_y(head, current_ms) + self.judge_y
+        start_position += self.judge_x
+        end_position += self.judge_x
         moji_y = tex.skin_config["moji"].y
         moji_x = -(tex.textures["notes"]["moji"].width//2) + (tex.textures["notes"]["1"].width//2)
         if head.display:
-            tex.draw_texture('notes', "8", frame=is_big, x=start_position, y=y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y, x2=length+tex.skin_config["drumroll_width_offset"].width, color=color)
+            tex.draw_texture('notes', "8", frame=is_big, x=start_position, y=y+(self.is_2p*tex.skin_config["2p_offset"].y), x2=length+tex.skin_config["drumroll_width_offset"].width, color=color)
             if is_big:
-                tex.draw_texture('notes', "drumroll_big_tail", x=end_position, y=y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y, color=color)
+                tex.draw_texture('notes', "drumroll_big_tail", x=end_position, y=y+(self.is_2p*tex.skin_config["2p_offset"].y), color=color)
             else:
-                tex.draw_texture('notes', "drumroll_tail", x=end_position, y=y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y, color=color)
+                tex.draw_texture('notes', "drumroll_tail", x=end_position, y=y+(self.is_2p*tex.skin_config["2p_offset"].y), color=color)
             tex.draw_texture('notes', str(head.type), frame=current_eighth % 2, x=start_position - tex.textures["notes"]["1"].width//2, y=y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y, color=color)
 
         tex.draw_texture('notes', 'moji_drumroll_mid', x=start_position + tex.textures["notes"]["1"].width//2, y=moji_y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y, x2=length)
@@ -1150,11 +1180,20 @@ class Player:
     def draw_balloon(self, current_ms: float, head: Balloon, current_eighth: int):
         """Draws a balloon in the player's lane"""
         offset = tex.skin_config["balloon_offset"].x
+        if hasattr(head, 'sudden_appear_ms') and hasattr(head, 'sudden_moving_ms'):
+            appear_ms = head.hit_ms - head.sudden_appear_ms
+            moving_start_ms = head.hit_ms - head.sudden_moving_ms
+            if current_ms < appear_ms:
+                return
+            if current_ms < moving_start_ms:
+                current_ms = moving_start_ms
         start_position = self.get_position_x(head, current_ms)
         tail = next((note for note in self.current_notes_draw[1:] if note.type == NoteType.TAIL and note.index > head.index), self.current_notes_draw[1])
         end_position = self.get_position_x(tail, current_ms)
-        pause_position = GameScreen.JUDGE_X
-        y = tex.skin_config["notes"].y + self.get_position_y(head, current_ms)
+        pause_position = GameScreen.JUDGE_X + self.judge_x
+        y = tex.skin_config["notes"].y + self.get_position_y(head, current_ms) + self.judge_y
+        start_position += self.judge_x
+        end_position += self.judge_x
         if current_ms >= tail.hit_ms:
             position = end_position
         elif current_ms >= head.hit_ms:
@@ -1162,8 +1201,8 @@ class Player:
         else:
             position = start_position
         if head.display:
-            tex.draw_texture('notes', str(head.type), frame=current_eighth % 2, x=position-offset - tex.textures["notes"]["1"].width//2, y=y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y)
-        tex.draw_texture('notes', '10', frame=current_eighth % 2, x=position-offset+tex.textures["notes"]["10"].width - tex.textures["notes"]["1"].width//2, y=y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y)
+            tex.draw_texture('notes', str(head.type), frame=current_eighth % 2, x=position-offset - tex.textures["notes"]["1"].width//2, y=y+(self.is_2p*tex.skin_config["2p_offset"].y))
+        tex.draw_texture('notes', '10', frame=current_eighth % 2, x=position-offset+tex.textures["notes"]["10"].width - tex.textures["notes"]["1"].width//2, y=y+(self.is_2p*tex.skin_config["2p_offset"].y))
 
     def draw_bars(self, current_ms: float):
         """Draw bars in the player's lane"""
@@ -1173,8 +1212,8 @@ class Player:
         for bar in reversed(self.current_bars):
             if not bar.display:
                 continue
-            x_position = self.get_position_x(bar, current_ms)
-            y_position = self.get_position_y(bar, current_ms)
+            x_position = self.get_position_x(bar, current_ms) + self.judge_x
+            y_position = self.get_position_y(bar, current_ms) + self.judge_y
             if y_position != 0:
                 angle = math.degrees(math.atan2(bar.scroll_y, bar.scroll_x))
             else:
@@ -1206,10 +1245,12 @@ class Player:
                 else:
                     effective_ms = current_ms
                 x_position = self.get_position_x(note, effective_ms)
-                y_position = self.get_position_y(note, effective_ms)
+                y_position = self.get_position_y(note, current_ms)
             else:
                 x_position = self.get_position_x(note, current_ms)
                 y_position = self.get_position_y(note, current_ms)
+            x_position += self.judge_x
+            y_position += self.judge_y
             if isinstance(note, Drumroll):
                 self.draw_drumroll(current_ms, note, current_eighth)
             elif isinstance(note, Balloon) and not note.is_kusudama:
