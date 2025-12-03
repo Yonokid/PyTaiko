@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from libs.global_data import Modifiers
-from libs.utils import strip_comments, global_tex
+from libs.utils import strip_comments
 
 
 @lru_cache(maxsize=64)
