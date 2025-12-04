@@ -388,10 +388,10 @@ class Player:
         note_half_w = tex.textures["notes"]["1"].width // 2
         travel_distance = tex.screen_width - GameScreen.JUDGE_X
 
-        base_pixels_per_ms = (note.bpm / 240000 * abs(note.scroll_x) * travel_distance * tex.screen_scale)
+        base_pixels_per_ms = (note.bpm / 240000 * abs(note.scroll_x) * travel_distance)
 
         if base_pixels_per_ms == 0:
-            base_pixels_per_ms = (note.bpm / 240000 * abs(note.scroll_y) * travel_distance * tex.screen_scale)
+            base_pixels_per_ms = (note.bpm / 240000 * abs(note.scroll_y) * travel_distance)
 
         normal_travel_ms = (travel_distance + note_half_w) / base_pixels_per_ms
 
@@ -479,11 +479,13 @@ class Player:
         for branch in (self.branch_m, self.branch_e, self.branch_n):
             if branch:
                 for section in branch:
-                    for note in section.draw_notes or []:
-                        self.get_load_time(note)
+                    if section.draw_notes:
+                        for note in section.draw_notes:
+                            self.get_load_time(note)
                         section.draw_notes = sorted(section.draw_notes, key=lambda n: n.load_ms)
-                    for note in section.bars or []:
-                        self.get_load_time(note)
+                    if section.bars:
+                        for note in section.bars:
+                            self.get_load_time(note)
                         section.bars = sorted(section.bars, key=lambda n: n.load_ms)
                     if section.play_notes:
                         self.end_time = max(self.end_time, section.play_notes[-1].hit_ms)
@@ -511,7 +513,7 @@ class Player:
     def get_position_x(self, note, current_ms):
         if self.delay_start:
             current_ms = self.delay_start
-        speedx = note.bpm / 240000 * note.scroll_x * (tex.screen_width - GameScreen.JUDGE_X) * tex.screen_scale
+        speedx = note.bpm / 240000 * note.scroll_x * (tex.screen_width - GameScreen.JUDGE_X)
         return GameScreen.JUDGE_X + (note.hit_ms - current_ms) * speedx
 
 
