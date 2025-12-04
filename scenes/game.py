@@ -481,8 +481,10 @@ class Player:
                 for section in branch:
                     for note in section.draw_notes or []:
                         self.get_load_time(note)
+                        section.draw_notes = sorted(section.draw_notes, key=lambda n: n.load_ms)
                     for note in section.bars or []:
                         self.get_load_time(note)
+                        section.bars = sorted(section.bars, key=lambda n: n.load_ms)
                     if section.play_notes:
                         self.end_time = max(self.end_time, section.play_notes[-1].hit_ms)
 

@@ -61,11 +61,19 @@ def build_song_hashes(output_dir=Path("cache")):
     path_to_hash: dict[str, str] = dict()  # New index for O(1) path lookups
     output_path = Path(output_dir / "song_hashes.json")
     index_path = Path(output_dir / "path_to_hash.json")
+    # Prepare database connection for updates
+    db_path = Path("scores.db")
+    db_updates = []  # Store updates to batch process later
 
     # Load existing data
     if output_path.exists():
         with open(output_path, "r", encoding="utf-8") as f:
             song_hashes = json.load(f, cls=DiffHashesDecoder)
+            for hash in song_hashes:
+                entry = song_hashes[hash][0]
+                for diff in entry["diff_hashes"]:
+                    db_updates.append((entry["diff_hashes"][diff], entry["title"]["en"], entry["title"].get("ja", ""), int(diff)))
+
     if index_path.exists():
         with open(index_path, "r", encoding="utf-8") as f:
             path_to_hash = json.load(f)
@@ -102,11 +110,6 @@ def build_song_hashes(output_dir=Path("cache")):
             if current_hash in song_hashes:
                 del song_hashes[current_hash]
             del path_to_hash[tja_path_str]
-
-
-    # Prepare database connection for updates
-    db_path = Path("scores.db")
-    db_updates = []  # Store updates to batch process later
 
     # Process only files that need updating
     song_count = 0
@@ -205,22 +208,68 @@ def build_song_hashes(output_dir=Path("cache")):
 
     # Update database with new difficulty hashes
     if db_updates and db_path.exists():
+        total_updates = 0
         try:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            for diff_hash, en_name, jp_name, diff in db_updates:
-                # Update existing entries that match by name and difficulty
-                cursor.execute("""
-                    UPDATE scores
-                    SET hash = ?
-                    WHERE (en_name = ? AND jp_name = ?) AND diff = ?
-                """, (diff_hash, en_name, jp_name, diff))
-                if cursor.rowcount > 0:
-                    logger.info(f"Updated {cursor.rowcount} entries for {en_name} ({diff})")
+            seen_hashes = set()
 
-            conn.commit()
+            for diff_hash, en_name, jp_name, diff in db_updates:
+                if diff_hash not in seen_hashes:
+                    seen_hashes.add(diff_hash)
+                else:
+                    continue
+
+                # Find all entries that match by name and difficulty
+                cursor.execute("""
+                    SELECT hash, clear, score
+                    FROM scores
+                    WHERE (en_name = ? AND jp_name = ?) AND diff = ?
+                    ORDER BY clear DESC, score DESC
+                """, (en_name, jp_name, diff))
+
+                entries = cursor.fetchall()
+                if any(entry[0] == diff_hash for entry in entries):
+                    continue
+
+                if len(entries) > 1:
+                    # Keep the first entry (highest clear/score), delete the rest
+                    keep_hash = entries[0][0]
+                    keep_crown = entries[0][1]
+                    keep_score = entries[0][2]
+
+                    delete_entries = entries[1:]
+
+                    logger.info(f"Found {len(entries)} duplicate entries for {en_name} ({diff}). Keeping entry with crown={keep_crown}, score={keep_score}, deleting {len(delete_entries)} duplicates.")
+
+                    for entry in delete_entries:
+                        cursor.execute("""
+                            DELETE FROM scores
+                            WHERE (en_name = ? AND jp_name = ?) AND diff = ? AND hash = ?
+                        """, (en_name, jp_name, diff, entry[0]))
+
+                    cursor.execute("""
+                        UPDATE scores
+                        SET hash = ?
+                        WHERE (en_name = ? AND jp_name = ?) AND diff = ? AND hash = ?
+                    """, (diff_hash, en_name, jp_name, diff, keep_hash))
+                    total_updates += 1
+                    logger.info(f"Deleted {len(delete_entries)} duplicate entries and updated hash for {en_name} ({diff})")
+                else:
+                    cursor.execute("""
+                        UPDATE scores
+                        SET hash = ?
+                        WHERE (en_name = ? AND jp_name = ?) AND diff = ?
+                    """, (diff_hash, en_name, jp_name, diff))
+
+                    if cursor.rowcount > 0:
+                        total_updates += 1
+                        logger.info(f"Updated hash for {en_name} ({diff})")
+
+                conn.commit()
+
             conn.close()
-            logger.info(f"Database update completed. Processed {len(db_updates)} difficulty hash updates.")
+            logger.info(f"Database update completed. Processed {total_updates} difficulty hash updates.")
 
         except sqlite3.Error as e:
             logger.error(f"Database error: {e}")
