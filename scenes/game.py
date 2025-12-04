@@ -138,7 +138,6 @@ class GameScreen(Screen):
         self.tja = TJAParser(song, start_delay=self.start_delay)
         if self.tja.metadata.bgmovie != Path() and self.tja.metadata.bgmovie.exists():
             self.movie = VideoPlayer(self.tja.metadata.bgmovie)
-            self.movie.set_volume(0.0)
         else:
             self.movie = None
         global_data.session_data[global_data.player_num].song_title = self.tja.metadata.title.get(global_data.config['general']['language'].lower(), self.tja.metadata.title['en'])
@@ -214,6 +213,7 @@ class GameScreen(Screen):
                 logger.info(f"Song started at {ms_from_start}")
             if self.movie is not None:
                 self.movie.start(get_current_ms())
+                self.movie.set_volume(0.0)
             self.song_started = True
 
     def pause_song(self):
@@ -384,6 +384,33 @@ class Player:
         self.autoplay_hit_side = Side.LEFT
         self.last_subdivision = -1
 
+    def get_load_time(self, note):
+        note_half_w = tex.textures["notes"]["1"].width // 2
+        travel_distance = tex.screen_width - GameScreen.JUDGE_X
+
+        base_pixels_per_ms = (note.bpm / 240000 * abs(note.scroll_x) * travel_distance * tex.screen_scale)
+
+        if base_pixels_per_ms == 0:
+            base_pixels_per_ms = (note.bpm / 240000 * abs(note.scroll_y) * travel_distance * tex.screen_scale)
+
+        normal_travel_ms = (travel_distance + note_half_w) / base_pixels_per_ms
+
+        if not hasattr(note, "sudden_appear_ms") or not hasattr(note, "sudden_moving_ms") or note.sudden_appear_ms == float("inf"):
+            note.load_ms   = note.hit_ms - normal_travel_ms
+            note.unload_ms = note.hit_ms + normal_travel_ms
+            return
+
+        note.load_ms = note.hit_ms - note.sudden_appear_ms
+        movement_duration = note.sudden_moving_ms
+
+        if movement_duration <= 0:
+            movement_duration = normal_travel_ms
+
+        sudden_pixels_per_ms = travel_distance / movement_duration
+        unload_offset = travel_distance / sudden_pixels_per_ms
+        note.unload_ms = note.hit_ms + unload_offset
+
+
     def reset_chart(self):
         notes, self.branch_m, self.branch_e, self.branch_n = self.tja.notes_to_position(self.difficulty)
         self.play_notes, self.draw_note_list, self.draw_bar_list = apply_modifiers(notes, self.modifiers)
@@ -417,71 +444,47 @@ class Player:
         if self.timeline and hasattr(self.timeline[self.timeline_index], 'bpm'):
             self.bpm = self.timeline[self.timeline_index].bpm
         for note in chain(self.draw_note_list, self.draw_bar_list):
-            distance_x = tex.screen_width - GameScreen.JUDGE_X
-            distance_y = abs(note.scroll_y * ((tex.screen_width - GameScreen.JUDGE_X)/tex.screen_width) * tex.screen_width)
-            total_distance = math.sqrt(distance_x**2 + distance_y**2)
-
-            pixels_per_ms = note.bpm / 240000 * abs(note.scroll_x) * ((tex.screen_width - tex.textures["notes"]["1"].width//2) - GameScreen.JUDGE_X) * tex.screen_scale
-
-            if pixels_per_ms == 0:
-                pixels_per_ms = note.bpm / 240000 * abs(note.scroll_y) * ((tex.screen_width - tex.textures["notes"]["1"].width//2) - GameScreen.JUDGE_X) * tex.screen_scale
-
-            if note.scroll_x >= 0:
-                base_load_offset = total_distance / pixels_per_ms
-                note.unload_ms = note.hit_ms + (GameScreen.JUDGE_X / pixels_per_ms)
-            else:
-                base_load_offset = GameScreen.JUDGE_X / pixels_per_ms
-                note.unload_ms = note.hit_ms + (total_distance / pixels_per_ms)
-
-            if hasattr(note, 'sudden_appear_ms') and hasattr(note, 'sudden_moving_ms') and note.sudden_appear_ms != float('inf'):
-                note.load_ms = note.hit_ms - note.sudden_appear_ms
-                if note.scroll_x >= 0:
-                    note.unload_ms = note.hit_ms + note.sudden_appear_ms - note.sudden_moving_ms + (GameScreen.JUDGE_X / pixels_per_ms)
-                else:
-                    note.unload_ms = note.hit_ms + note.sudden_appear_ms - note.sudden_moving_ms + (total_distance / pixels_per_ms)
-            else:
-                note.load_ms = note.hit_ms - base_load_offset
+            self.get_load_time(note)
 
         self.draw_note_list = deque(sorted(self.draw_note_list, key=lambda n: n.load_ms))
-        self.draw_bar_list = deque(sorted(self.draw_bar_list, key=lambda n: n.load_ms))
 
         # Handle HBSCROLL, BMSCROLL (pre-modify hit_ms, so that notes can't be literally hit, but are still visually different) - basically it applies the transformations of #BPMCHANGE and #DELAY to hit_ms, so that notes can't be hit even if its visaulyl
         for i, o in enumerate(self.timeline):
             if hasattr(o, 'bpmchange'):
                 hit_ms = o.hit_ms
                 bpmchange = o.bpmchange
-                for note in chain(self.play_notes, self.current_bars, self.draw_bar_list):
+                for note in chain(self.draw_note_list, self.draw_bar_list):
                     if note.hit_ms > hit_ms:
                         note.hit_ms = (note.hit_ms - hit_ms) / bpmchange + hit_ms
                 for i2 in range(i + 1, len(self.timeline)):
                     o2 = self.timeline[i2]
+                    if not hasattr(o2, 'bpmchange'):
+                        continue
                     o2.hit_ms = (o2.hit_ms - hit_ms) / bpmchange + hit_ms
             elif hasattr(o, 'delay'):
                 hit_ms = o.hit_ms
                 delay = o.delay
-                for note in chain(self.play_notes, self.current_bars, self.draw_bar_list):
+                for note in chain(self.draw_note_list, self.draw_bar_list):
                     if note.hit_ms > hit_ms:
                         note.hit_ms += delay
                 for i2 in range(i + 1, len(self.timeline)):
                     o2 = self.timeline[i2]
+                    if not hasattr(o2, 'delay'):
+                        continue
                     o2.hit_ms += delay
 
         # Decide end_time after all transforms have been applied
-        self.end_time = 0
-        if self.play_notes:
-            self.end_time = self.play_notes[-1].hit_ms
-        if self.branch_m:
-            for section in self.branch_m:
-                if section.play_notes:
-                    self.end_time = max(self.end_time, section.play_notes[-1].hit_ms)
-        if self.branch_e:
-            for section in self.branch_e:
-                if section.play_notes:
-                    self.end_time = max(self.end_time, section.play_notes[-1].hit_ms)
-        if self.branch_n:
-            for section in self.branch_n:
-                if section.play_notes:
-                    self.end_time = max(self.end_time, section.play_notes[-1].hit_ms)
+        self.end_time = self.play_notes[-1].hit_ms if self.play_notes else 0
+
+        for branch in (self.branch_m, self.branch_e, self.branch_n):
+            if branch:
+                for section in branch:
+                    for note in section.draw_notes or []:
+                        self.get_load_time(note)
+                    for note in section.bars or []:
+                        self.get_load_time(note)
+                    if section.play_notes:
+                        self.end_time = max(self.end_time, section.play_notes[-1].hit_ms)
 
     def merge_branch_section(self, branch_section: NoteList, current_ms: float):
         """Merges the branch notes into the current notes"""
@@ -504,11 +507,15 @@ class Player:
         return self.score, self.good_count, self.ok_count, self.bad_count, self.max_combo, self.total_drumroll
 
     def get_position_x(self, note, current_ms):
+        if self.delay_start:
+            current_ms = self.delay_start
         speedx = note.bpm / 240000 * note.scroll_x * (tex.screen_width - GameScreen.JUDGE_X) * tex.screen_scale
         return GameScreen.JUDGE_X + (note.hit_ms - current_ms) * speedx
 
 
     def get_position_y(self, note, current_ms):
+        if self.delay_start:
+            current_ms = self.delay_start
         speedy = note.bpm / 240000 * note.scroll_y * ((tex.screen_width - GameScreen.JUDGE_X)/tex.screen_width) * tex.screen_width
         return (note.hit_ms - current_ms) * speedy
 
@@ -589,25 +596,15 @@ class Player:
         timeline_object = self.timeline[self.timeline_index]
         should_advance = False
 
-        '''
         if hasattr(timeline_object, 'bpmchange') and timeline_object.hit_ms <= current_ms:
             hit_ms = timeline_object.hit_ms
             bpmchange = timeline_object.bpmchange
-            # Adjust notes (visually)
-            for note in chain(self.play_notes, self.current_bars, self.draw_bar_list):
-                # Already modified
-                # note.hit_ms = (note.hit_ms - hit_ms) / bpmchange + hit_ms
-                # time_diff * note.pixels_per_frame need to be the same before and after the adjustment
-                # that means time_diff should be divided by self.bpmchange.bpmchange
-                # current_ms = self.bpmchange.hit_ms
-                time_diff = note.load_ms - hit_ms
-                note.load_ms = time_diff / bpmchange + hit_ms
+            for note in chain(self.current_notes_draw, self.current_bars, self.draw_note_list, self.draw_bar_list):
+                note.bpm *= bpmchange
+                self.get_load_time(note)
 
-                note.pixels_per_frame_x *= bpmchange
-                note.pixels_per_frame_y *= bpmchange
             self.bpm *= bpmchange
             should_advance = True
-        '''
 
         if hasattr(timeline_object, 'delay') and timeline_object.hit_ms <= current_ms:
             hit_ms = timeline_object.hit_ms
@@ -666,7 +663,6 @@ class Player:
             logger.info(f'branch condition measures started with conditions {self.branch_condition}, {e_req}, {m_req}, {self.current_bars[-1].hit_ms}')
             if not self.is_branch:
                 self.is_branch = True
-                '''
                 if self.branch_condition == 'r':
                     end_time = self.branch_m[0].bars[0].load_ms
                     end_roll = -1
@@ -706,7 +702,6 @@ class Player:
                                 seen_notes.add(note)
 
                     self.curr_branch_reqs = [e_req, m_req, branch_start_time, max(len(seen_notes), 1)]
-            '''
     def play_note_manager(self, current_ms: float, background: Optional[Background]):
         """Manages the play_notes and removes if necessary"""
         if self.don_notes and self.don_notes[0].hit_ms + Player.TIMING_BAD < current_ms:
@@ -1099,7 +1094,6 @@ class Player:
         self.animation_manager(self.draw_drum_hit_list, current_time)
         self.get_judge_position(ms_from_start)
         self.handle_scroll_type_commands(ms_from_start)
-        '''
         if self.delay_start is not None and self.delay_end is not None:
             # Currently, a delay is active: notes should be frozen at ms = delay_start
             # Check if it ended
@@ -1109,7 +1103,6 @@ class Player:
                     note.load_ms += delay
                 self.delay_start = None
                 self.delay_end = None
-        '''
         self.update_bpm(ms_from_start)
 
         # More efficient arc management

@@ -751,15 +751,16 @@ class TJAParser:
         state.time_signature = float(numerator) / float(denominator)
 
     def handle_scroll(self, part: str, state: ParserState):
-        if 'i' in part:
-            normalized = part.replace('.i', 'j').replace('i', 'j')
-            normalized = normalized.replace(',', '')
-            c = complex(normalized)
-            state.scroll_x_modifier = c.real
-            state.scroll_y_modifier = c.imag
-        else:
-            state.scroll_x_modifier = float(part)
-            state.scroll_y_modifier = 0.0
+        if state.scroll_type != ScrollType.BMSCROLL:
+            if 'i' in part:
+                normalized = part.replace('.i', 'j').replace('i', 'j')
+                normalized = normalized.replace(',', '')
+                c = complex(normalized)
+                state.scroll_x_modifier = c.real
+                state.scroll_y_modifier = c.imag
+            else:
+                state.scroll_x_modifier = float(part)
+                state.scroll_y_modifier = 0.0
 
     def handle_bpmchange(self, part: str, state: ParserState):
         parsed_bpm = float(part)
@@ -790,7 +791,7 @@ class TJAParser:
         state.start_branch_y_scroll = state.scroll_y_modifier
         state.start_branch_barline = state.barline_display
         state.branch_balloon_index = state.balloon_index
-        branch_params = part[13:]
+        branch_params = part
 
         def set_branch_params(bar_list: list[Note], branch_params: str, section_bar: Optional[Note]):
             if bar_list and len(bar_list) > 1:
@@ -827,6 +828,7 @@ class TJAParser:
 
     def handle_lyric(self, part: str, state: ParserState):
         timeline_obj = TimelineObject()
+        timeline_obj.hit_ms = self.current_ms
         timeline_obj.lyric = part
         state.curr_timeline.append(timeline_obj)
 
@@ -891,21 +893,20 @@ class TJAParser:
 
     def handle_gogostart(self, part: str, state: ParserState):
         timeline_obj = TimelineObject()
+        timeline_obj.hit_ms = self.current_ms
         timeline_obj.gogo_time = True
         state.curr_timeline.append(timeline_obj)
 
     def handle_gogoend(self, part: str, state: ParserState):
         timeline_obj = TimelineObject()
+        timeline_obj.hit_ms = self.current_ms
         timeline_obj.gogo_time = False
         state.curr_timeline.append(timeline_obj)
 
     def handle_delay(self, part: str, state: ParserState):
         delay_ms = float(part) * 1000
         if state.scroll_type == ScrollType.BMSCROLL or state.scroll_type == ScrollType.HBSCROLL:
-            if delay_ms <= 0:
-                # No changes if not positive
-                pass
-            else:
+            if delay_ms > 0:
                 # Do not modify current_ms, it will be modified live
                 state.delay_current += delay_ms
 
@@ -927,7 +928,6 @@ class TJAParser:
             if state.sudden_moving == 0:
                 state.sudden_moving = float('inf')
 
-    '''
     def handle_m(self, part: str, state: ParserState):
         self.branch_m.append(NoteList())
         state.curr_note_list = self.branch_m[-1].play_notes
@@ -972,7 +972,6 @@ class TJAParser:
         state.barline_display = state.start_branch_barline
         state.balloon_index = state.branch_balloon_index
         state.is_branching = True
-    '''
 
     def add_bar(self, state: ParserState):
         bar_line = Note()
@@ -1044,13 +1043,16 @@ class TJAParser:
         init_bpm.bpm = state.bpm
         state.curr_timeline.append(init_bpm)
 
+        state.bpmchange_last_bpm = state.bpm
+        state.delay_last_note_ms = self.current_ms
+
         for bar in notes:
             bar_length = sum(len(part) for part in bar if '#' not in part)
             state.barline_added = False
 
             for part in bar:
                 if part.startswith('#'):
-                    for cmd_prefix, handler in commands.items():
+                    for cmd_prefix, handler in sorted(commands.items(), key=lambda x: len(x[0]), reverse=True):
                         if part.startswith(cmd_prefix):
                             value = part[len(cmd_prefix):].strip()
                             handler(value, state)
