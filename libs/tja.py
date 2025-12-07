@@ -21,11 +21,6 @@ def get_ms_per_measure(bpm_val: float, time_sig: float):
         return 0
     return 60000 * (time_sig * 4) / bpm_val
 
-@lru_cache(maxsize=64)
-def get_pixels_per_ms(pixels_per_frame: float):
-    """Calculate the number of pixels per millisecond."""
-    return pixels_per_frame / (1000 / 60)
-
 class NoteType(IntEnum):
     NONE = 0
     DON = 1

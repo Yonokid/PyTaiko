@@ -4,7 +4,6 @@ import sys
 import logging
 import time
 from libs.global_data import PlayerNum, global_data
-from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -56,16 +55,6 @@ def strip_comments(code: str) -> str:
             result += line[:comment_index]
         index += 1
     return result
-
-@lru_cache
-def get_pixels_per_frame(bpm: float, time_signature: float, distance: float) -> float:
-    """Calculate the number of pixels per frame"""
-    if bpm == 0:
-        return 0
-    beat_duration = 60 / bpm
-    total_time = time_signature * beat_duration
-    total_frames = 60 * total_time
-    return (distance / total_frames)
 
 def is_input_key_pressed(keys: list[int], gamepad_buttons: list[int]):
     if global_data.input_locked:

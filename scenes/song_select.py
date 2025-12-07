@@ -85,6 +85,7 @@ class SongSelectScreen(Screen):
 
     def finalize_song(self, current_item: SongFile):
         global_data.session_data[global_data.player_num].selected_song = current_item.path
+        global_data.session_data[global_data.player_num].song_hash = global_data.song_hashes[current_item.hash][0]["diff_hashes"][self.player_1.selected_difficulty]
         global_data.session_data[global_data.player_num].selected_difficulty = self.player_1.selected_difficulty
         global_data.session_data[global_data.player_num].genre_index = current_item.box.name_texture_index
 

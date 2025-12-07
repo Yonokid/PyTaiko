@@ -147,26 +147,6 @@ class GameScreen(Screen):
         self.player_1 = Player(self.tja, global_data.player_num, global_data.session_data[global_data.player_num].selected_difficulty, False, global_data.modifiers[global_data.player_num])
         self.start_ms = get_current_ms() - self.tja.metadata.offset*1000
 
-    def get_song_hash(self, song: Path):
-        notes, branch_m, branch_e, branch_n = TJAParser.notes_to_position(TJAParser(song), self.player_1.difficulty)
-        if branch_m:
-            for branch in branch_m:
-                notes.play_notes.extend(branch.play_notes)
-                notes.draw_notes.extend(branch.draw_notes)
-                notes.bars.extend(branch.bars)
-        if branch_e:
-            for branch in branch_e:
-                notes.play_notes.extend(branch.play_notes)
-                notes.draw_notes.extend(branch.draw_notes)
-                notes.bars.extend(branch.bars)
-        if branch_n:
-            for branch in branch_n:
-                notes.play_notes.extend(branch.play_notes)
-                notes.draw_notes.extend(branch.draw_notes)
-                notes.bars.extend(branch.bars)
-        hash = self.tja.hash_note_data(notes)
-        return hash
-
     def write_score(self):
         """Write the score to the database"""
         if global_data.modifiers[global_data.player_num].auto:
@@ -174,7 +154,7 @@ class GameScreen(Screen):
         with sqlite3.connect('scores.db') as con:
             session_data = global_data.session_data[global_data.player_num]
             cursor = con.cursor()
-            hash = self.get_song_hash(session_data.selected_song)
+            hash = session_data.song_hash
             check_query = "SELECT score, clear FROM Scores WHERE hash = ? LIMIT 1"
             cursor.execute(check_query, (hash,))
             result = cursor.fetchone()

@@ -3,6 +3,7 @@ import pyray as ray
 
 from libs.audio import audio
 from libs.screen import Screen
+from libs.texture import tex
 from libs.utils import (
     global_data,
     is_l_don_pressed,
@@ -227,6 +228,7 @@ class SettingsScreen(Screen):
 
     def draw(self):
         # Draw title
+        ray.draw_rectangle(0, 0, tex.screen_width, tex.screen_height, ray.BLACK)
         ray.draw_text("SETTINGS", 20, 20, 30, ray.WHITE)
 
         # Draw section headers

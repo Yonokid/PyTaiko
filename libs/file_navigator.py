@@ -280,9 +280,9 @@ class FolderBox(BaseBox):
 
         if self.crown: #Folder lamp
             highest_crown = max(self.crown)
-            if self.crown[highest_crown] == 'DFC':
+            if self.crown[highest_crown] == Crown.DFC:
                 tex.draw_texture('yellow_box', 'crown_dfc', x=x, y=y, frame=min(Difficulty.URA, highest_crown), fade=outer_fade_override)
-            elif self.crown[highest_crown] == 'FC':
+            elif self.crown[highest_crown] == Crown.FC:
                 tex.draw_texture('yellow_box', 'crown_fc', x=x, y=y, frame=min(Difficulty.URA, highest_crown), fade=outer_fade_override)
             else:
                 tex.draw_texture('yellow_box', 'crown_clear', x=x, y=y, frame=min(Difficulty.URA, highest_crown), fade=outer_fade_override)
@@ -1376,24 +1376,21 @@ class FileNavigator:
         all_scores = dict()
         crowns = dict()
 
-        for tja_path in tja_files:
-            song_key = str(tja_path)
-            if song_key in self.all_song_files:
-                song_obj = self.all_song_files[song_key]
-                if not isinstance(song_obj, SongFile):
-                    continue
-                for diff in song_obj.box.scores:
-                    if diff not in all_scores:
-                        all_scores[diff] = []
-                    all_scores[diff].append(song_obj.box.scores[diff])
+        for song_obj in tja_files:
+            if not isinstance(song_obj, SongFile):
+                continue
+            for diff in song_obj.box.scores:
+                if diff not in all_scores:
+                    all_scores[diff] = []
+                all_scores[diff].append(song_obj.box.scores[diff])
 
         for diff in all_scores:
             if all(score is not None and score[5] == Crown.DFC for score in all_scores[diff]):
-                crowns[diff] = 'DFC'
+                crowns[diff] = Crown.DFC
             elif all(score is not None and score[5] == Crown.FC for score in all_scores[diff]):
-                crowns[diff] = 'FC'
+                crowns[diff] = Crown.FC
             elif all(score is not None and score[5] >= Crown.CLEAR for score in all_scores[diff]):
-                crowns[diff] = 'CLEAR'
+                crowns[diff] = Crown.CLEAR
 
         self.directory_crowns[dir_key] = crowns
 
@@ -1455,16 +1452,17 @@ class FileNavigator:
                 original_hash = hash_val
 
                 if hash_val in global_data.song_hashes:
-                    file_path = Path(global_data.song_hashes[hash_val][0]["file_path"])
-                    if file_path.exists() and file_path not in tja_files:
-                        tja_files.append(file_path)
+                    for entry in global_data.song_hashes[hash_val]:
+                        file_path = Path(entry["file_path"])
+                        if file_path.exists() and file_path not in tja_files:
+                            tja_files.append(file_path)
                 else:
                     # Try to find by title and subtitle
                     for key, value in global_data.song_hashes.items():
                         for i in range(len(value)):
                             song = value[i]
-                            if (song["title"]["en"] == title and
-                                song["subtitle"]["en"] == subtitle and
+                            if (song["title"]["en"].strip() == title and
+                                song["subtitle"]["en"].strip() == subtitle.removeprefix('--') and
                                 Path(song["file_path"]).exists()):
                                 hash_val = key
                                 tja_files.append(Path(global_data.song_hashes[hash_val][i]["file_path"]))
@@ -1472,7 +1470,7 @@ class FileNavigator:
 
                 if hash_val != original_hash:
                     file_updated = True
-                updated_lines.append(f"{hash_val}|{title}|{subtitle}")
+                updated_lines.append(f"{hash_val}|{title}|{subtitle.removeprefix('--')}")
 
         # Write back updated song list if needed
         if file_updated:
