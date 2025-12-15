@@ -226,6 +226,7 @@ class SettingsScreen(Screen):
                 logger.info("Exited section edit")
 
     def draw(self):
+        ray.draw_rectangle(0, 0, tex.screen_width, tex.screen_height, ray.BLACK)
         # Draw title
         ray.draw_text("SETTINGS", 20, 20, 30, ray.WHITE)
 
