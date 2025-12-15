@@ -11,6 +11,7 @@ from libs.utils import (
     is_r_kat_pressed,
 )
 from libs.config import save_config
+from libs.texture import tex
 
 logger = logging.getLogger(__name__)
 
