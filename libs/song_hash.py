@@ -3,6 +3,7 @@ import logging
 import json
 import sqlite3
 import time
+import csv
 from pathlib import Path
 
 from libs.global_data import Crown
@@ -69,10 +70,12 @@ def build_song_hashes(output_dir=Path("cache")):
     if output_path.exists():
         with open(output_path, "r", encoding="utf-8") as f:
             song_hashes = json.load(f, cls=DiffHashesDecoder)
+            '''
             for hash in song_hashes:
                 entry = song_hashes[hash][0]
                 for diff in entry["diff_hashes"]:
                     db_updates.append((entry["diff_hashes"][diff], entry["title"]["en"], entry["title"].get("ja", ""), int(diff)))
+            '''
 
     if index_path.exists():
         with open(index_path, "r", encoding="utf-8") as f:
@@ -111,7 +114,6 @@ def build_song_hashes(output_dir=Path("cache")):
                 del song_hashes[current_hash]
             del path_to_hash[tja_path_str]
 
-    # Process only files that need updating
     song_count = 0
     total_songs = len(files_to_process)
     if total_songs > 0:
@@ -167,7 +169,7 @@ def build_song_hashes(output_dir=Path("cache")):
 
         # Prepare database updates for each difficulty
         en_name = tja.metadata.title.get('en', '') if isinstance(tja.metadata.title, dict) else str(tja.metadata.title)
-        jp_name = tja.metadata.title.get('jp', '') if isinstance(tja.metadata.title, dict) else ''
+        jp_name = tja.metadata.title.get('ja', '') if isinstance(tja.metadata.title, dict) else ''
 
         score_ini_path = tja_path.with_suffix('.tja.score.ini')
         if score_ini_path.exists():
@@ -319,7 +321,6 @@ def process_tja_file(tja_file):
     hash = tja.hash_note_data(all_notes)
     return hash
 
-'''
 def get_japanese_songs_for_version(csv_file_path, version_column):
     # Read CSV file and filter rows where the specified version column has 'YES'
     version_songs = []
@@ -398,13 +399,17 @@ def get_japanese_songs_for_version(csv_file_path, version_column):
         if len(matches) == 1:
             path = matches[0][1]
         elif len(matches) > 1:
-            logger.info(
+            print(
                 f"Multiple matches found for '{title.split('／')[0]} ({title.split('／')[1] if len(title.split('／')) > 1 else ''})':"
             )
             for i, (key, path_val) in enumerate(matches, 1):
-                logger.info(f"{i}. {key}: {path_val}")
-            choice = int(input("Choose number: ")) - 1
-            path = matches[choice][1]
+                print(f"{i}. {key}: {path_val}")
+            choice = input("Choose number: ")
+            if choice.isdigit():
+                choice = int(choice) - 1
+                path = matches[choice][1]
+            else:
+                path = Path(choice)
         else:
             path = Path(input(f"NOT FOUND {title}: "))
         hash = process_tja_file(path)
@@ -415,7 +420,7 @@ def get_japanese_songs_for_version(csv_file_path, version_column):
         text_files[genre].append(
             f"{hash}|{tja_parse.metadata.title['en'].strip()}|{tja_parse.metadata.subtitle['en'].strip()}"
         )
-        logger.info(f"Added {title}: {path}")
+        print(f"Added {title}: {path}")
     for genre in text_files:
         if not Path(version_column).exists():
             Path(version_column).mkdir()
@@ -431,6 +436,9 @@ def get_japanese_songs_for_version(csv_file_path, version_column):
     return text_files
 
 
-if len(sys.argv) > 1:
-    get_japanese_songs_for_version(sys.argv[1], sys.argv[2])
+'''
+versions = ['AC6']
+for version in versions:
+    print(version)
+    get_japanese_songs_for_version('full.csv', version)
 '''

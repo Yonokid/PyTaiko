@@ -1157,7 +1157,6 @@ class FileNavigator:
                     content_items.append(self.all_song_files[song_key])
 
             self.directory_contents[dir_key] = content_items
-            self.crown_cache_dirty.add(dir_key)
 
         else:
             # For directories without box.def, still process their children
@@ -1374,22 +1373,56 @@ class FileNavigator:
     def _calculate_directory_crowns(self, dir_key: str, tja_files: list):
         """Pre-calculate crowns for a directory"""
         all_scores = dict()
-        crowns = dict()
+        child_has_any_crown = []  # Track if each child has been played at all
 
-        for song_obj in tja_files:
-            if not isinstance(song_obj, SongFile):
-                continue
-            for diff in song_obj.box.scores:
-                if diff not in all_scores:
-                    all_scores[diff] = []
-                all_scores[diff].append(song_obj.box.scores[diff])
+        for item in tja_files:
+            has_crown = False
+            if isinstance(item, SongFile):
+                has_crown = any((item.box.scores.get(d) or (None,)*6)[5] is not None
+                              for d in [Difficulty.EASY, Difficulty.NORMAL, Difficulty.HARD, Difficulty.ONI])
+                for diff in item.box.scores:
+                    if diff not in all_scores:
+                        all_scores[diff] = []
+                    all_scores[diff].append(item.box.scores[diff])
+            elif isinstance(item, Directory):
+                child_key = str(item.path)
+                child_crowns = self._get_directory_crowns_cached(child_key)
+                has_crown = bool(child_crowns)  # Directory is "played" if it has any crowns
 
+                if not child_crowns:
+                    # Unplayed directory - add None for all difficulties
+                    for diff in [Difficulty.EASY, Difficulty.NORMAL, Difficulty.HARD, Difficulty.ONI]:
+                        if diff not in all_scores:
+                            all_scores[diff] = []
+                        all_scores[diff].append((None, None, None, None, None, None))
+                else:
+                    # Played directory - add its crowns
+                    for diff in [Difficulty.EASY, Difficulty.NORMAL, Difficulty.HARD, Difficulty.ONI]:
+                        if diff not in all_scores:
+                            all_scores[diff] = []
+                        if diff in child_crowns:
+                            all_scores[diff].append((None, None, None, None, None, child_crowns[diff]))
+                        else:
+                            # This directory doesn't have this difficulty, but it's been played
+                            # Don't add anything - this child doesn't count for this difficulty
+                            pass
+
+            child_has_any_crown.append(has_crown)
+
+        # If ANY child is completely unplayed, no crowns at all
+        if not all(child_has_any_crown):
+            self.directory_crowns[dir_key] = {}
+            return
+
+        crowns = {}
         for diff in all_scores:
-            if all(score is not None and score[5] == Crown.DFC for score in all_scores[diff]):
+            if any(score is None or score[5] is None for score in all_scores[diff]):
+                continue
+            if all(score[5] == Crown.DFC for score in all_scores[diff]):
                 crowns[diff] = Crown.DFC
-            elif all(score is not None and score[5] == Crown.FC for score in all_scores[diff]):
+            elif all(score[5] == Crown.FC for score in all_scores[diff]):
                 crowns[diff] = Crown.FC
-            elif all(score is not None and score[5] >= Crown.CLEAR for score in all_scores[diff]):
+            elif all(score[5] >= Crown.CLEAR for score in all_scores[diff]):
                 crowns[diff] = Crown.CLEAR
 
         self.directory_crowns[dir_key] = crowns

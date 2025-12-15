@@ -649,24 +649,7 @@ class Player:
                 self.is_branch = True
                 if self.branch_condition == 'r':
                     end_time = self.branch_m[0].bars[0].load_ms
-                    end_roll = -1
-
-                    note_lists = [
-                        self.other_notes,
-                        self.branch_m[0].play_notes if self.branch_m else [],
-                        self.branch_e[0].play_notes if self.branch_e else [],
-                        self.branch_n[0].play_notes if self.branch_n else [],
-                    ]
-
-                    end_roll = -1
-                    for notes in note_lists:
-                        for i in range(len(notes)-1, -1, -1):
-                            if notes[i].type == NoteType.TAIL and notes[i].hit_ms <= end_time:
-                                end_roll = notes[i].hit_ms
-                                break
-                        if end_roll != -1:
-                            break
-                    self.curr_branch_reqs = [e_req, m_req, end_roll, 1]
+                    self.curr_branch_reqs = [e_req, m_req, end_time, 1]
                 elif self.branch_condition == 'p':
                     start_time = self.current_bars[0].hit_ms if self.current_bars else self.current_bars[-1].hit_ms
                     branch_start_time = self.branch_m[0].bars[0].load_ms
@@ -827,7 +810,7 @@ class Player:
         if drum_type != DrumType.DON:
             return
         if note.is_kusudama:
-            self.check_kusudama(note)
+            self.check_kusudama(note, current_time)
             return
         if self.balloon_anim is None:
             self.balloon_anim = BalloonAnimation(current_time, note.count, self.player_num, self.is_2p)
@@ -843,7 +826,7 @@ class Player:
             self.note_correct(note, current_time)
             self.curr_balloon_count = 0
 
-    def check_kusudama(self, note: Balloon):
+    def check_kusudama(self, note: Balloon, current_time: float):
         """Checks if the player has popped a kusudama"""
         if self.kusudama_anim is None:
             self.kusudama_anim = KusudamaAnimation(note.count)
@@ -855,6 +838,7 @@ class Player:
             audio.play_sound('kusudama_pop', 'hitsound')
             self.is_balloon = False
             note.popped = True
+            self.kusudama_anim.update(current_time, note.popped)
             self.curr_balloon_count = 0
 
     def check_note(self, ms_from_start: float, drum_type: DrumType, current_time: float, background: Optional[Background]):
@@ -876,7 +860,7 @@ class Player:
             self.check_drumroll(drum_type, background, current_time)
         elif self.is_balloon:
             if not isinstance(curr_note, Balloon):
-                raise Exception("Balloon mode entered but current note is not balloon")
+                return
             self.check_balloon(drum_type, curr_note, current_time)
         else:
             self.curr_drumroll_count = 0
