@@ -115,13 +115,11 @@ class SongSelectScreen(Screen):
         current_time = get_current_ms()
         if action == "skip_left":
             self.reset_demo_music()
-            for _ in range(10):
-                self.navigator.navigate_left()
+            self.navigator.skip_left()
             self.last_moved = current_time
         elif action == "skip_right":
             self.reset_demo_music()
-            for _ in range(10):
-                self.navigator.navigate_right()
+            self.navigator.skip_right()
             self.last_moved = current_time
         elif action == "navigate_left":
             self.reset_demo_music()
@@ -1161,7 +1159,7 @@ class ModifierSelector:
             self.is_confirmed = True
             self.move.restart()
 
-    def _start_text_animation(self, direction, old_value):
+    def _start_text_animation(self, direction):
         self.move_sideways.start()
         self.fade_sideways.start()
         self.direction = direction
@@ -1202,15 +1200,15 @@ class ModifierSelector:
         current_value = getattr(global_data.modifiers[self.player_num], current_mod.name)
         if current_mod.type is bool:
             setattr(global_data.modifiers[self.player_num], current_mod.name, not current_value)
-            self._start_text_animation(-1, current_value)
+            self._start_text_animation(-1)
         elif current_mod.name == 'speed':
             new_value = max(1, (current_value*10 - 1))/10
             setattr(global_data.modifiers[self.player_num], current_mod.name, new_value)
-            self._start_text_animation(-1, current_value)
+            self._start_text_animation(-1)
         elif current_mod.name == 'random':
             new_value = max(0, current_value-1)
             setattr(global_data.modifiers[self.player_num], current_mod.name, new_value)
-            self._start_text_animation(-1, current_value)
+            self._start_text_animation(-1)
 
     def right(self):
         if self.is_confirmed:
@@ -1219,15 +1217,15 @@ class ModifierSelector:
         current_value = getattr(global_data.modifiers[self.player_num], current_mod.name)
         if current_mod.type is bool:
             setattr(global_data.modifiers[self.player_num], current_mod.name, not current_value)
-            self._start_text_animation(1, current_value)
+            self._start_text_animation(1)
         elif current_mod.name == 'speed':
             new_value = (current_value*10 + 1)/10
             setattr(global_data.modifiers[self.player_num], current_mod.name, new_value)
-            self._start_text_animation(1, current_value)
+            self._start_text_animation(1)
         elif current_mod.name == 'random':
             new_value = (current_value+1) % 3
             setattr(global_data.modifiers[self.player_num], current_mod.name, new_value)
-            self._start_text_animation(1, current_value)
+            self._start_text_animation(1)
 
     def _draw_animated_text(self, text_primary: OutlinedText, text_secondary: OutlinedText, x: float, y: float, should_animate: bool):
         if should_animate and not self.move_sideways.is_finished:

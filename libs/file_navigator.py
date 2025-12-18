@@ -1593,6 +1593,18 @@ class FileNavigator:
             self.calculate_box_positions()
             logger.info(f"Moved Right to {self.items[self.selected_index].path}")
 
+    def skip_left(self):
+        if self.items:
+            self.selected_index = (self.selected_index - 10) % len(self.items)
+            self.calculate_box_positions()
+            logger.info(f"Skipped Left to {self.items[self.selected_index].path}")
+
+    def skip_right(self):
+        if self.items:
+            self.selected_index = (self.selected_index + 10) % len(self.items)
+            self.calculate_box_positions()
+            logger.info(f"Skipped Right to {self.items[self.selected_index].path}")
+
     def get_current_item(self):
         """Get the currently selected item"""
         if self.items and 0 <= self.selected_index < len(self.items):

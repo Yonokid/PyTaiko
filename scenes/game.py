@@ -25,6 +25,7 @@ from libs.tja import (
     NoteList,
     NoteType,
     TJAParser,
+    TimelineObject,
     apply_modifiers,
     calculate_base_score,
 )
@@ -545,13 +546,7 @@ class Player:
             self.timeline_index += 1
     '''
 
-    def get_judge_position(self, current_ms: float):
-        """Get the current judgment circle position based on bar data with on-demand interpolation"""
-        if not self.timeline or self.timeline_index >= len(self.timeline):
-            return
-
-        timeline_object = self.timeline[self.timeline_index]
-
+    def handle_judgeposition(self, current_ms: float, timeline_object: TimelineObject):
         if hasattr(timeline_object, 'judge_pos_x'):
             if timeline_object.load_ms <= current_ms <= timeline_object.hit_ms:
                 duration = timeline_object.hit_ms - timeline_object.load_ms
@@ -573,13 +568,7 @@ class Player:
                         next_timeline_object.judge_pos_x = self.judge_x / tex.screen_scale
                         next_timeline_object.judge_pos_y = self.judge_y / tex.screen_scale
 
-    def handle_scroll_type_commands(self, current_ms: float):
-        if not self.timeline or self.timeline_index >= len(self.timeline):
-            return
-
-        timeline_object = self.timeline[self.timeline_index]
-        should_advance = False
-
+    def handle_scroll_type_commands(self, current_ms: float, timeline_object: TimelineObject):
         if hasattr(timeline_object, 'bpmchange') and timeline_object.hit_ms <= current_ms:
             hit_ms = timeline_object.hit_ms
             bpmchange = timeline_object.bpmchange
@@ -588,7 +577,7 @@ class Player:
                 self.get_load_time(note)
 
             self.bpm *= bpmchange
-            should_advance = True
+            self.timeline_index += 1
 
         if hasattr(timeline_object, 'delay') and timeline_object.hit_ms <= current_ms:
             hit_ms = timeline_object.hit_ms
@@ -600,18 +589,33 @@ class Player:
                 self.delay_start = hit_ms
                 self.delay_end = hit_ms + delay
 
-            should_advance = True
-
-        if should_advance:
             self.timeline_index += 1
 
-    def update_bpm(self, current_ms: float):
-        if not self.timeline or self.timeline_index >= len(self.timeline):
-            return
-        timeline_object = self.timeline[self.timeline_index]
+    def handle_bpmchange(self, current_ms: float, timeline_object: TimelineObject):
         if hasattr(timeline_object, 'bpm') and timeline_object.hit_ms <= current_ms:
             self.bpm = timeline_object.bpm
             self.timeline_index += 1
+
+    def handle_gogotime(self, current_ms: float, timeline_object: TimelineObject):
+        if hasattr(timeline_object, 'gogo_time') and timeline_object.hit_ms <= current_ms:
+            self.is_gogo_time = timeline_object.gogo_time
+            if self.is_gogo_time:
+                self.gogo_time = GogoTime(self.is_2p)
+                self.chara.set_animation('gogo_start')
+            else:
+                self.gogo_time = None
+                self.chara.set_animation('gogo_stop')
+            self.timeline_index += 1
+
+    def handle_timeline(self, current_ms: float):
+        if not self.timeline or self.timeline_index >= len(self.timeline):
+            return
+        timeline_object = self.timeline[self.timeline_index]
+
+        self.handle_scroll_type_commands(current_ms, timeline_object)
+        self.handle_bpmchange(current_ms, timeline_object)
+        self.handle_judgeposition(current_ms, timeline_object)
+        self.handle_gogotime(current_ms, timeline_object)
 
     def animation_manager(self, animation_list: list, current_time: float):
         if not animation_list:
@@ -754,7 +758,6 @@ class Player:
         self.bar_manager(current_ms)
         self.play_note_manager(current_ms, background)
         self.draw_note_manager(current_ms)
-        #self.handle_tjap3_extended_commands(current_ms)
 
     def note_correct(self, note: Note, current_time: float):
         """Removes a note from the appropriate separated list"""
@@ -1060,8 +1063,7 @@ class Player:
         if self.lane_hit_effect is not None:
             self.lane_hit_effect.update(current_time)
         self.animation_manager(self.draw_drum_hit_list, current_time)
-        self.get_judge_position(ms_from_start)
-        self.handle_scroll_type_commands(ms_from_start)
+        self.handle_timeline(ms_from_start)
         if self.delay_start is not None and self.delay_end is not None:
             # Currently, a delay is active: notes should be frozen at ms = delay_start
             # Check if it ended
@@ -1071,7 +1073,6 @@ class Player:
                     note.load_ms += delay
                 self.delay_start = None
                 self.delay_end = None
-        self.update_bpm(ms_from_start)
 
         # More efficient arc management
         finished_arcs = []
@@ -1125,7 +1126,6 @@ class Player:
         start_position += self.judge_x
         end_position += self.judge_x
         moji_y = tex.skin_config["moji"].y
-        moji_x = -(tex.textures["notes"]["moji"].width//2) + (tex.textures["notes"]["1"].width//2)
         if head.display:
             tex.draw_texture('notes', "8", frame=is_big, x=start_position, y=y+(self.is_2p*tex.skin_config["2p_offset"].y), x2=length+tex.skin_config["drumroll_width_offset"].width, color=color)
             if is_big:
@@ -1134,9 +1134,9 @@ class Player:
                 tex.draw_texture('notes', "drumroll_tail", x=end_position, y=y+(self.is_2p*tex.skin_config["2p_offset"].y), color=color)
             tex.draw_texture('notes', str(head.type), frame=current_eighth % 2, x=start_position - tex.textures["notes"]["1"].width//2, y=y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y, color=color)
 
-        tex.draw_texture('notes', 'moji_drumroll_mid', x=start_position + tex.textures["notes"]["1"].width//2, y=moji_y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y, x2=length)
-        tex.draw_texture('notes', 'moji', frame=head.moji, x=start_position + moji_x, y=moji_y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y)
-        tex.draw_texture('notes', 'moji', frame=tail.moji, x=end_position + moji_x, y=moji_y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y)
+        tex.draw_texture('notes', 'moji_drumroll_mid', x=start_position, y=moji_y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y, x2=length)
+        tex.draw_texture('notes', 'moji', frame=head.moji, x=start_position - (tex.textures["notes"]["moji"].width//2), y=moji_y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y)
+        tex.draw_texture('notes', 'moji', frame=tail.moji, x=end_position - (tex.textures["notes"]["moji"].width//2), y=moji_y+(self.is_2p*tex.skin_config["2p_offset"].y)+self.judge_y)
 
     def draw_balloon(self, current_ms: float, head: Balloon, current_eighth: int):
         """Draws a balloon in the player's lane"""
@@ -1193,7 +1193,10 @@ class Player:
             if note.type == NoteType.TAIL:
                 continue
 
+            eighth_in_ms = 0 if self.bpm == 0 else (60000 * 4 / self.bpm) / 8
             current_eighth = 0
+            if self.combo >= 50 and eighth_in_ms != 0:
+                current_eighth = int(current_ms // eighth_in_ms)
             if hasattr(note, 'sudden_appear_ms') and hasattr(note, 'sudden_moving_ms'):
                 appear_ms = note.hit_ms - note.sudden_appear_ms
                 moving_start_ms = note.hit_ms - note.sudden_moving_ms

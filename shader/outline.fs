@@ -7,7 +7,7 @@ uniform vec2 textureSize;
 uniform float outlineSize;
 uniform vec4 outlineColor;
 uniform float alpha;
-uniform float smoothness = 1.0; // Add this uniform for control (0.0-1.0)
+uniform float smoothness = 1.0;
 out vec4 finalColor;
 
 void main()
@@ -15,7 +15,6 @@ void main()
     vec4 texel = texture(texture0, fragTexCoord);
     vec2 texelScale = vec2(outlineSize/textureSize.x, outlineSize/textureSize.y);
 
-    // Calculate outline
     float outline = 0.0;
     int ringSamples = 16;
     int rings = 2;
