@@ -280,9 +280,9 @@ class FolderBox(BaseBox):
 
         if self.crown: #Folder lamp
             highest_crown = max(self.crown)
-            if self.crown[highest_crown] == 'DFC':
+            if self.crown[highest_crown] == Crown.DFC:
                 tex.draw_texture('yellow_box', 'crown_dfc', x=x, y=y, frame=min(Difficulty.URA, highest_crown), fade=outer_fade_override)
-            elif self.crown[highest_crown] == 'FC':
+            elif self.crown[highest_crown] == Crown.FC:
                 tex.draw_texture('yellow_box', 'crown_fc', x=x, y=y, frame=min(Difficulty.URA, highest_crown), fade=outer_fade_override)
             else:
                 tex.draw_texture('yellow_box', 'crown_clear', x=x, y=y, frame=min(Difficulty.URA, highest_crown), fade=outer_fade_override)
@@ -1157,7 +1157,6 @@ class FileNavigator:
                     content_items.append(self.all_song_files[song_key])
 
             self.directory_contents[dir_key] = content_items
-            self.crown_cache_dirty.add(dir_key)
 
         else:
             # For directories without box.def, still process their children
@@ -1374,26 +1373,57 @@ class FileNavigator:
     def _calculate_directory_crowns(self, dir_key: str, tja_files: list):
         """Pre-calculate crowns for a directory"""
         all_scores = dict()
-        crowns = dict()
+        child_has_any_crown = []  # Track if each child has been played at all
 
-        for tja_path in tja_files:
-            song_key = str(tja_path)
-            if song_key in self.all_song_files:
-                song_obj = self.all_song_files[song_key]
-                if not isinstance(song_obj, SongFile):
-                    continue
-                for diff in song_obj.box.scores:
+        for item in tja_files:
+            has_crown = False
+            if isinstance(item, SongFile):
+                has_crown = any((item.box.scores.get(d) or (None,)*6)[5] is not None
+                              for d in [Difficulty.EASY, Difficulty.NORMAL, Difficulty.HARD, Difficulty.ONI])
+                for diff in item.box.scores:
                     if diff not in all_scores:
                         all_scores[diff] = []
-                    all_scores[diff].append(song_obj.box.scores[diff])
+                    all_scores[diff].append(item.box.scores[diff])
+            elif isinstance(item, Directory):
+                child_key = str(item.path)
+                child_crowns = self._get_directory_crowns_cached(child_key)
+                has_crown = bool(child_crowns)  # Directory is "played" if it has any crowns
 
+                if not child_crowns:
+                    # Unplayed directory - add None for all difficulties
+                    for diff in [Difficulty.EASY, Difficulty.NORMAL, Difficulty.HARD, Difficulty.ONI]:
+                        if diff not in all_scores:
+                            all_scores[diff] = []
+                        all_scores[diff].append((None, None, None, None, None, None))
+                else:
+                    # Played directory - add its crowns
+                    for diff in [Difficulty.EASY, Difficulty.NORMAL, Difficulty.HARD, Difficulty.ONI]:
+                        if diff not in all_scores:
+                            all_scores[diff] = []
+                        if diff in child_crowns:
+                            all_scores[diff].append((None, None, None, None, None, child_crowns[diff]))
+                        else:
+                            # This directory doesn't have this difficulty, but it's been played
+                            # Don't add anything - this child doesn't count for this difficulty
+                            pass
+
+            child_has_any_crown.append(has_crown)
+
+        # If ANY child is completely unplayed, no crowns at all
+        if not all(child_has_any_crown):
+            self.directory_crowns[dir_key] = {}
+            return
+
+        crowns = {}
         for diff in all_scores:
-            if all(score is not None and score[5] == Crown.DFC for score in all_scores[diff]):
-                crowns[diff] = 'DFC'
-            elif all(score is not None and score[5] == Crown.FC for score in all_scores[diff]):
-                crowns[diff] = 'FC'
-            elif all(score is not None and score[5] >= Crown.CLEAR for score in all_scores[diff]):
-                crowns[diff] = 'CLEAR'
+            if any(score is None or score[5] is None for score in all_scores[diff]):
+                continue
+            if all(score[5] == Crown.DFC for score in all_scores[diff]):
+                crowns[diff] = Crown.DFC
+            elif all(score[5] == Crown.FC for score in all_scores[diff]):
+                crowns[diff] = Crown.FC
+            elif all(score[5] >= Crown.CLEAR for score in all_scores[diff]):
+                crowns[diff] = Crown.CLEAR
 
         self.directory_crowns[dir_key] = crowns
 
@@ -1455,16 +1485,17 @@ class FileNavigator:
                 original_hash = hash_val
 
                 if hash_val in global_data.song_hashes:
-                    file_path = Path(global_data.song_hashes[hash_val][0]["file_path"])
-                    if file_path.exists() and file_path not in tja_files:
-                        tja_files.append(file_path)
+                    for entry in global_data.song_hashes[hash_val]:
+                        file_path = Path(entry["file_path"])
+                        if file_path.exists() and file_path not in tja_files:
+                            tja_files.append(file_path)
                 else:
                     # Try to find by title and subtitle
                     for key, value in global_data.song_hashes.items():
                         for i in range(len(value)):
                             song = value[i]
-                            if (song["title"]["en"] == title and
-                                song["subtitle"]["en"] == subtitle and
+                            if (song["title"]["en"].strip() == title and
+                                song["subtitle"]["en"].strip() == subtitle.removeprefix('--') and
                                 Path(song["file_path"]).exists()):
                                 hash_val = key
                                 tja_files.append(Path(global_data.song_hashes[hash_val][i]["file_path"]))
@@ -1472,7 +1503,7 @@ class FileNavigator:
 
                 if hash_val != original_hash:
                     file_updated = True
-                updated_lines.append(f"{hash_val}|{title}|{subtitle}")
+                updated_lines.append(f"{hash_val}|{title}|{subtitle.removeprefix('--')}")
 
         # Write back updated song list if needed
         if file_updated:
@@ -1561,6 +1592,18 @@ class FileNavigator:
             self.selected_index = (self.selected_index + 1) % len(self.items)
             self.calculate_box_positions()
             logger.info(f"Moved Right to {self.items[self.selected_index].path}")
+
+    def skip_left(self):
+        if self.items:
+            self.selected_index = (self.selected_index - 10) % len(self.items)
+            self.calculate_box_positions()
+            logger.info(f"Skipped Left to {self.items[self.selected_index].path}")
+
+    def skip_right(self):
+        if self.items:
+            self.selected_index = (self.selected_index + 10) % len(self.items)
+            self.calculate_box_positions()
+            logger.info(f"Skipped Right to {self.items[self.selected_index].path}")
 
     def get_current_item(self):
         """Get the currently selected item"""

@@ -85,6 +85,7 @@ class SongSelectScreen(Screen):
 
     def finalize_song(self, current_item: SongFile):
         global_data.session_data[global_data.player_num].selected_song = current_item.path
+        global_data.session_data[global_data.player_num].song_hash = global_data.song_hashes[current_item.hash][0]["diff_hashes"][self.player_1.selected_difficulty]
         global_data.session_data[global_data.player_num].selected_difficulty = self.player_1.selected_difficulty
         global_data.session_data[global_data.player_num].genre_index = current_item.box.name_texture_index
 
@@ -114,13 +115,11 @@ class SongSelectScreen(Screen):
         current_time = get_current_ms()
         if action == "skip_left":
             self.reset_demo_music()
-            for _ in range(10):
-                self.navigator.navigate_left()
+            self.navigator.skip_left()
             self.last_moved = current_time
         elif action == "skip_right":
             self.reset_demo_music()
-            for _ in range(10):
-                self.navigator.navigate_right()
+            self.navigator.skip_right()
             self.last_moved = current_time
         elif action == "navigate_left":
             self.reset_demo_music()
@@ -685,12 +684,13 @@ class SongSelectPlayer:
     def draw_background_diffs(self, state: int):
         if (self.selected_song and state == State.SONG_SELECTED and self.selected_difficulty >= Difficulty.EASY):
             if self.player_num == PlayerNum.P2:
-                tex.draw_texture('global', 'background_diff', frame=self.selected_difficulty, fade=min(0.5, self.selected_diff_fadein.attribute), x=1025, y=-self.selected_diff_bounce.attribute, y2=self.selected_diff_bounce.attribute)
+                x_offset = 1025 * tex.screen_scale
+                tex.draw_texture('global', 'background_diff', frame=self.selected_difficulty, fade=min(0.5, self.selected_diff_fadein.attribute), x=x_offset, y=-self.selected_diff_bounce.attribute, y2=self.selected_diff_bounce.attribute)
                 if self.selected_diff_highlight_fade.is_reversing or self.selected_diff_highlight_fade.is_finished:
-                    tex.draw_texture('global', 'background_diff', frame=self.selected_difficulty, x=1025, y=-self.selected_diff_bounce.attribute, y2=self.selected_diff_bounce.attribute)
-                tex.draw_texture('global', 'background_diff_highlight', frame=min(Difficulty.ONI, self.selected_difficulty), fade=self.selected_diff_highlight_fade.attribute, x=1025)
-                tex.draw_texture('global', 'bg_diff_text_bg', x=1025, fade=min(0.5, self.selected_diff_text_fadein.attribute), scale=self.selected_diff_text_resize.attribute, center=True)
-                tex.draw_texture('global', 'bg_diff_text', frame=min(Difficulty.ONI, self.selected_difficulty), x=1025, fade=self.selected_diff_text_fadein.attribute, scale=self.selected_diff_text_resize.attribute, center=True)
+                    tex.draw_texture('global', 'background_diff', frame=self.selected_difficulty, x=x_offset, y=-self.selected_diff_bounce.attribute, y2=self.selected_diff_bounce.attribute)
+                tex.draw_texture('global', 'background_diff_highlight', frame=min(Difficulty.ONI, self.selected_difficulty), fade=self.selected_diff_highlight_fade.attribute, x=x_offset)
+                tex.draw_texture('global', 'bg_diff_text_bg', x=x_offset, fade=min(0.5, self.selected_diff_text_fadein.attribute), scale=self.selected_diff_text_resize.attribute, center=True)
+                tex.draw_texture('global', 'bg_diff_text', frame=min(Difficulty.ONI, self.selected_difficulty), x=x_offset, fade=self.selected_diff_text_fadein.attribute, scale=self.selected_diff_text_resize.attribute, center=True)
             else:
                 tex.draw_texture('global', 'background_diff', frame=self.selected_difficulty, fade=min(0.5, self.selected_diff_fadein.attribute), y=-self.selected_diff_bounce.attribute, y2=self.selected_diff_bounce.attribute)
                 if self.selected_diff_highlight_fade.is_reversing or self.selected_diff_highlight_fade.is_finished:
@@ -1159,7 +1159,7 @@ class ModifierSelector:
             self.is_confirmed = True
             self.move.restart()
 
-    def _start_text_animation(self, direction, old_value):
+    def _start_text_animation(self, direction):
         self.move_sideways.start()
         self.fade_sideways.start()
         self.direction = direction
@@ -1200,15 +1200,15 @@ class ModifierSelector:
         current_value = getattr(global_data.modifiers[self.player_num], current_mod.name)
         if current_mod.type is bool:
             setattr(global_data.modifiers[self.player_num], current_mod.name, not current_value)
-            self._start_text_animation(-1, current_value)
+            self._start_text_animation(-1)
         elif current_mod.name == 'speed':
             new_value = max(1, (current_value*10 - 1))/10
             setattr(global_data.modifiers[self.player_num], current_mod.name, new_value)
-            self._start_text_animation(-1, current_value)
+            self._start_text_animation(-1)
         elif current_mod.name == 'random':
             new_value = max(0, current_value-1)
             setattr(global_data.modifiers[self.player_num], current_mod.name, new_value)
-            self._start_text_animation(-1, current_value)
+            self._start_text_animation(-1)
 
     def right(self):
         if self.is_confirmed:
@@ -1217,15 +1217,15 @@ class ModifierSelector:
         current_value = getattr(global_data.modifiers[self.player_num], current_mod.name)
         if current_mod.type is bool:
             setattr(global_data.modifiers[self.player_num], current_mod.name, not current_value)
-            self._start_text_animation(1, current_value)
+            self._start_text_animation(1)
         elif current_mod.name == 'speed':
             new_value = (current_value*10 + 1)/10
             setattr(global_data.modifiers[self.player_num], current_mod.name, new_value)
-            self._start_text_animation(1, current_value)
+            self._start_text_animation(1)
         elif current_mod.name == 'random':
             new_value = (current_value+1) % 3
             setattr(global_data.modifiers[self.player_num], current_mod.name, new_value)
-            self._start_text_animation(1, current_value)
+            self._start_text_animation(1)
 
     def _draw_animated_text(self, text_primary: OutlinedText, text_secondary: OutlinedText, x: float, y: float, should_animate: bool):
         if should_animate and not self.move_sideways.is_finished:

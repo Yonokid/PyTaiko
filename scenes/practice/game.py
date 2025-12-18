@@ -345,7 +345,7 @@ class PracticePlayer(Player):
         # Group 3: Notes and bars (game content)
         if not self.paused:
             self.draw_bars(ms_from_start)
-            self.draw_notes(ms_from_start, start_ms)
+            self.draw_notes(ms_from_start)
 
 class PracticeDrumHitEffect(DrumHitEffect):
     def __init__(self, type, side, is_2p, player_num: PlayerNum = PlayerNum.P1):

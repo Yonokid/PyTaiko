@@ -111,6 +111,7 @@ class SessionData:
     song_title: The title of the song being played.
     genre_index: The index of the genre being played."""
     selected_song: Path = Path()
+    song_hash: str = ""
     selected_dan: list[tuple[Any, int, int, int]] = field(default_factory=lambda: [])
     selected_dan_exam: list[Any] = field(default_factory=lambda: [])
     dan_color: int = 0

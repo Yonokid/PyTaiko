@@ -17,6 +17,7 @@ from raylib.defines import (
 from libs.audio import audio
 from libs.global_data import PlayerNum
 from libs.screen import Screen
+from libs.song_hash import DB_VERSION
 from libs.tja import TJAParser
 from libs.utils import (
     force_dedicated_gpu,
@@ -118,6 +119,13 @@ def create_song_db():
     """Create the scores database if it doesn't exist"""
     with sqlite3.connect('scores.db') as con:
         cursor = con.cursor()
+
+        cursor.execute('''
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='Scores'
+        ''')
+        table_exists = cursor.fetchone() is not None
+
         create_table_query = '''
         CREATE TABLE IF NOT EXISTS Scores (
             hash TEXT PRIMARY KEY,
@@ -134,8 +142,14 @@ def create_song_db():
         );
         '''
         cursor.execute(create_table_query)
+
+        if not table_exists:
+            cursor.execute(f'PRAGMA user_version = {DB_VERSION}')
+            logger.info(f"Scores database created successfully with version {DB_VERSION}")
+        else:
+            logger.info("Scores database already exists")
+
         con.commit()
-        logger.info("Scores database created successfully")
 
 def update_camera_for_window_size(camera, virtual_width, virtual_height):
     """Update camera zoom, offset, scale, and rotation to maintain aspect ratio"""

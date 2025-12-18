@@ -48,10 +48,8 @@ class BaseChibi:
             textures = [((duration / len(self.keyframes))*i, (duration / len(self.keyframes))*(i+1), index) for i, index in enumerate(self.keyframes)]
             self.texture_change = Animation.create_texture_change(duration, textures=textures)
             self.texture_change.start()
-            self.hori_move = Animation.create_move(60000 / self.bpm * 5, total_distance=self.tex.screen_width)
-            self.hori_move.start()
-            self.vert_move = Animation.create_move(60000 / self.bpm / 2, total_distance=50 * self.tex.screen_scale, reverse_delay=0)
-            self.vert_move.start()
+            self.hori_move.duration = 60000 / self.bpm * 5
+            self.vert_move.duration = 60000 / self.bpm / 2
 
     def draw(self, tex: TextureWrapper):
         tex.draw_texture(self.name, str(self.index), frame=self.texture_change.attribute, x=self.hori_move.attribute, y=-self.vert_move.attribute+(self.is_2p*tex.skin_config["game_2p_offset"].y))
