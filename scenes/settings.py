@@ -12,6 +12,7 @@ from libs.utils import (
     is_r_kat_pressed,
 )
 from libs.config import save_config
+from libs.texture import tex
 
 logger = logging.getLogger(__name__)
 
@@ -227,6 +228,7 @@ class SettingsScreen(Screen):
                 logger.info("Exited section edit")
 
     def draw(self):
+        ray.draw_rectangle(0, 0, tex.screen_width, tex.screen_height, ray.BLACK)
         # Draw title
         ray.draw_rectangle(0, 0, tex.screen_width, tex.screen_height, ray.BLACK)
         ray.draw_text("SETTINGS", 20, 20, 30, ray.WHITE)
