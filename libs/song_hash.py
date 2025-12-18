@@ -12,6 +12,7 @@ from libs.utils import global_data
 from libs.config import get_config
 
 logger = logging.getLogger(__name__)
+DB_VERSION = 1
 
 def diff_hashes_object_hook(obj):
     if "diff_hashes" in obj:
@@ -24,6 +25,18 @@ def diff_hashes_object_hook(obj):
 class DiffHashesDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
         super().__init__(object_hook=diff_hashes_object_hook, *args, **kwargs)
+
+def get_db_version():
+    with sqlite3.connect('scores.db') as con:
+        cursor = con.cursor()
+        cursor.execute('PRAGMA user_version')
+        version = cursor.fetchone()[0]
+        return version
+
+def update_db_version():
+    with sqlite3.connect('scores.db') as con:
+        cursor = con.cursor()
+        cursor.execute(f'PRAGMA user_version = {DB_VERSION}')
 
 def read_tjap3_score(input_file: Path):
     """Read a TJAPlayer3 score.ini file and return the scores and clears."""
@@ -70,12 +83,12 @@ def build_song_hashes(output_dir=Path("cache")):
     if output_path.exists():
         with open(output_path, "r", encoding="utf-8") as f:
             song_hashes = json.load(f, cls=DiffHashesDecoder)
-            '''
-            for hash in song_hashes:
-                entry = song_hashes[hash][0]
-                for diff in entry["diff_hashes"]:
-                    db_updates.append((entry["diff_hashes"][diff], entry["title"]["en"], entry["title"].get("ja", ""), int(diff)))
-            '''
+            if get_db_version() != DB_VERSION:
+                update_db_version()
+                for hash in song_hashes:
+                    entry = song_hashes[hash][0]
+                    for diff in entry["diff_hashes"]:
+                        db_updates.append((entry["diff_hashes"][diff], entry["title"]["en"], entry["title"].get("ja", ""), int(diff)))
 
     if index_path.exists():
         with open(index_path, "r", encoding="utf-8") as f:
