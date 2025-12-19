@@ -87,7 +87,7 @@ class DanGameScreen(GameScreen):
         song, genre_index, difficulty, level = songs[self.song_index]
         session_data.selected_difficulty = difficulty
         self.player_1.difficulty = difficulty
-        self.tja = TJAParser(song.file_path, start_delay=self.start_delay, distance=tex.screen_width - GameScreen.JUDGE_X)
+        self.tja = TJAParser(song.file_path, start_delay=self.start_delay)
         if self.song_music is not None:
             audio.unload_music_stream(self.song_music)
         self.song_music = None

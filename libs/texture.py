@@ -225,6 +225,13 @@ class TextureWrapper:
             tex_object.y[index] += distance
             logger.info(f"{tex_object.name}: {tex_object.x[index]}, {tex_object.y[index]}")
 
+    def clear_screen(self, color: Color):
+        if isinstance(color, tuple):
+            clear_color = [color[0], color[1], color[2], color[3]]
+        else:
+            clear_color = [color.r, color.g, color.b, color.a]
+        ray.ClearBackground(clear_color)
+
     def _draw_texture_untyped(self, subset: str, texture: str, color: tuple[int, int, int, int], frame: int, scale: float, center: bool,
                             mirror: str, x: float, y: float, x2: float, y2: float,
                             origin: tuple[float, float], rotation: float, fade: float,

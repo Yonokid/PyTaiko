@@ -1,3 +1,4 @@
+import math
 from collections import deque
 import logging
 from pathlib import Path
@@ -9,7 +10,7 @@ from libs.animation import Animation
 from libs.audio import audio
 from libs.background import Background
 from libs.global_data import Modifiers, PlayerNum, global_data
-from libs.tja import Balloon, Drumroll, Note, NoteType, TJAParser, apply_modifiers
+from libs.tja import Balloon, Drumroll, NoteType, TJAParser, TimelineObject, apply_modifiers
 from libs.utils import get_current_ms
 from libs.texture import tex
 from scenes.game import DrumHitEffect, DrumType, GameScreen, JudgeCounter, LaneHitEffect, Player, Side
@@ -23,29 +24,28 @@ class PracticeGameScreen(GameScreen):
 
     def init_tja(self, song: Path):
         """Initialize the TJA file"""
-        self.tja = TJAParser(song, start_delay=self.start_delay, distance=tex.screen_width - GameScreen.JUDGE_X)
-        self.scrobbling_tja = TJAParser(song, start_delay=self.start_delay, distance=tex.screen_width - GameScreen.JUDGE_X)
+        self.tja = TJAParser(song, start_delay=self.start_delay)
+        self.scrobbling_tja = TJAParser(song, start_delay=self.start_delay)
         global_data.session_data[global_data.player_num].song_title = self.tja.metadata.title.get(global_data.config['general']['language'].lower(), self.tja.metadata.title['en'])
         if self.tja.metadata.wave.exists() and self.tja.metadata.wave.is_file() and self.song_music is None:
             self.song_music = audio.load_music_stream(self.tja.metadata.wave, 'song')
         self.player_1 = PracticePlayer(self.tja, global_data.player_num, global_data.session_data[global_data.player_num].selected_difficulty, False, global_data.modifiers[global_data.player_num])
         notes, branch_m, branch_e, branch_n = self.tja.notes_to_position(self.player_1.difficulty)
+        self.scrobble_timeline = notes.timeline
         _, self.scrobble_note_list, self.bars = apply_modifiers(notes, self.player_1.modifiers)
         self.start_ms = (get_current_ms() - self.tja.metadata.offset*1000)
         self.scrobble_index = 0
         self.scrobble_time = self.bars[self.scrobble_index].hit_ms
         self.scrobble_move = Animation.create_move(200, total_distance=0)
 
-        self.markers = self.get_gogotime_markers(self.scrobble_note_list)
+        self.markers = self.get_gogotime_markers(self.scrobble_timeline)
 
-    def get_gogotime_markers(self, note_list: deque[Note | Drumroll | Balloon]):
+    def get_gogotime_markers(self, timeline: list[TimelineObject]):
         marker_list = []
-        for i, note in enumerate(note_list):
-            if i == 0 and note.gogo_time:
-                marker_list.append(note.hit_ms)
-            elif i > 0 and note.gogo_time:
-                if not note_list[i-1].gogo_time:
-                    marker_list.append(note.hit_ms)
+        for obj in timeline:
+            if hasattr(obj, 'gogo_time'):
+                if obj.gogo_time:
+                    marker_list.append(obj.hit_ms)
         return marker_list
 
     def pause_song(self):
@@ -120,7 +120,7 @@ class PracticeGameScreen(GameScreen):
             elif ray.is_key_pressed(ray.KeyboardKey.KEY_RIGHT):
                 self.scrobble_index = (self.scrobble_index + 1) % len(self.bars)
 
-            time_difference = self.bars[self.scrobble_index].load_ms - self.bars[old_index].load_ms
+            time_difference = self.bars[self.scrobble_index].hit_ms - self.bars[old_index].hit_ms
 
             self.scrobble_move = Animation.create_move(400, total_distance=time_difference, ease_out='quadratic')
             self.scrobble_move.start()
@@ -149,50 +149,52 @@ class PracticeGameScreen(GameScreen):
 
         return self.global_keys()
 
-    def get_position_x(self, width: int, current_ms: float, load_ms: float, pixels_per_frame: float) -> int:
-        """Calculates the x-coordinate of a note based on its load time and current time"""
-        if self.paused:
-            time_diff = load_ms - self.scrobble_time - self.scrobble_move.attribute
-        else:
-            time_diff = load_ms - current_ms
-        return int(width + pixels_per_frame * 0.06 * time_diff - (tex.textures["notes"]["1"].width//2))
+    def get_position_x(self, note, current_ms):
+        speedx = note.bpm / 240000 * note.scroll_x * (tex.screen_width - GameScreen.JUDGE_X)
+        return (GameScreen.JUDGE_X + (note.hit_ms - current_ms) * speedx) - self.scrobble_move.attribute
 
-    def get_position_y(self, current_ms: float, load_ms: float, pixels_per_frame: float, pixels_per_frame_x) -> int:
-        """Calculates the y-coordinate of a note based on its load time and current time"""
-        time_diff = load_ms - current_ms
-        return int((pixels_per_frame * 0.06 * time_diff) + ((self.tja.distance * pixels_per_frame) / pixels_per_frame_x))
 
-    def draw_drumroll(self, current_ms: float, head: Drumroll, current_eighth: int, index: int):
+    def get_position_y(self, note, current_ms):
+        speedy = note.bpm / 240000 * note.scroll_y * ((tex.screen_width - GameScreen.JUDGE_X)/tex.screen_width) * tex.screen_width
+        return (note.hit_ms - current_ms) * speedy
+
+    def draw_drumroll(self, current_ms: float, head: Drumroll):
         """Draws a drumroll in the player's lane"""
-        start_position = self.get_position_x(tex.screen_width, current_ms, head.load_ms, head.pixels_per_frame_x)
-        tail = next((note for note in self.scrobble_note_list if note.index == index+1), self.scrobble_note_list[index+1])
+        start_position = self.get_position_x(head, current_ms)
+        tail = next((note for note in self.scrobble_note_list if note.type == NoteType.TAIL and note.index > head.index), self.scrobble_note_list[1])
         is_big = int(head.type == NoteType.ROLL_HEAD_L)
-        end_position = self.get_position_x(tex.screen_width, current_ms, tail.load_ms, tail.pixels_per_frame_x)
+        end_position = self.get_position_x(tail, current_ms)
         length = end_position - start_position
         color = ray.Color(255, head.color, head.color, 255)
-        y = tex.skin_config["notes"].y
+        y = tex.skin_config["notes"].y + self.get_position_y(head, current_ms)
         moji_y = tex.skin_config["moji"].y
-        moji_x = tex.skin_config["moji"].x
         if head.display:
-            if length > 0:
-                tex.draw_texture('notes', "8", frame=is_big, x=start_position+(tex.textures["notes"]["8"].width//2), y=y, x2=length+tex.skin_config["drumroll_width_offset"].width, color=color)
-                if is_big:
-                    tex.draw_texture('notes', "drumroll_big_tail", x=end_position+tex.textures["notes"]["drumroll_big_tail"].width//2, y=y, color=color)
-                else:
-                    tex.draw_texture('notes', "drumroll_tail", x=end_position+tex.textures["notes"]["drumroll_tail"].width//2, y=y, color=color)
-            tex.draw_texture('notes', str(head.type), frame=current_eighth % 2, x=start_position, y=y, color=color)
+            tex.draw_texture('notes', "8", frame=is_big, x=start_position, y=y, x2=length+tex.skin_config["drumroll_width_offset"].width, color=color)
+            if is_big:
+                tex.draw_texture('notes', "drumroll_big_tail", x=end_position, y=y, color=color)
+            else:
+                tex.draw_texture('notes', "drumroll_tail", x=end_position, y=y, color=color)
+            tex.draw_texture('notes', str(head.type), x=start_position - tex.textures["notes"]["1"].width//2, y=y, color=color)
 
-        tex.draw_texture('notes', 'moji_drumroll_mid', x=start_position + tex.skin_config["moji_drumroll"].x, y=moji_y, x2=length)
-        tex.draw_texture('notes', 'moji', frame=head.moji, x=start_position - moji_x, y=moji_y)
-        tex.draw_texture('notes', 'moji', frame=tail.moji, x=end_position - tex.skin_config["moji_drumroll"].width, y=moji_y)
+        tex.draw_texture('notes', 'moji_drumroll_mid', x=start_position, y=moji_y, x2=length)
+        tex.draw_texture('notes', 'moji', frame=head.moji, x=start_position - (tex.textures["notes"]["moji"].width//2), y=moji_y)
+        tex.draw_texture('notes', 'moji', frame=tail.moji, x=end_position - (tex.textures["notes"]["moji"].width//2), y=moji_y)
 
-    def draw_balloon(self, current_ms: float, head: Balloon, current_eighth: int, index: int):
+    def draw_balloon(self, current_ms: float, head: Balloon):
         """Draws a balloon in the player's lane"""
         offset = tex.skin_config["balloon_offset"].x
-        start_position = self.get_position_x(tex.screen_width, current_ms, head.load_ms, head.pixels_per_frame_x)
-        tail = next((note for note in self.scrobble_note_list if note.index == index+1), self.scrobble_note_list[index+1])
-        end_position = self.get_position_x(tex.screen_width, current_ms, tail.load_ms, tail.pixels_per_frame_x)
-        pause_position = tex.skin_config["balloon_pause_position"].x
+        if hasattr(head, 'sudden_appear_ms') and hasattr(head, 'sudden_moving_ms'):
+            appear_ms = head.hit_ms - head.sudden_appear_ms
+            moving_start_ms = head.hit_ms - head.sudden_moving_ms
+            if current_ms < appear_ms:
+                return
+            if current_ms < moving_start_ms:
+                current_ms = moving_start_ms
+        start_position = self.get_position_x(head, current_ms)
+        tail = next((note for note in self.scrobble_note_list if note.type == NoteType.TAIL and note.index > head.index), self.scrobble_note_list[1])
+        end_position = self.get_position_x(tail, current_ms)
+        pause_position = GameScreen.JUDGE_X
+        y = tex.skin_config["notes"].y + self.get_position_y(head, current_ms)
         if current_ms >= tail.hit_ms:
             position = end_position
         elif current_ms >= head.hit_ms:
@@ -200,61 +202,53 @@ class PracticeGameScreen(GameScreen):
         else:
             position = start_position
         if head.display:
-            tex.draw_texture('notes', str(head.type), frame=current_eighth % 2, x=position-offset, y=tex.skin_config["notes"].y)
-        tex.draw_texture('notes', '10', frame=current_eighth % 2, x=position-offset+tex.textures["notes"]["10"].width, y=tex.skin_config["notes"].y)
+            tex.draw_texture('notes', str(head.type), x=position-offset - tex.textures["notes"]["1"].width//2, y=y)
+        tex.draw_texture('notes', '10', x=position-offset+tex.textures["notes"]["10"].width - tex.textures["notes"]["1"].width//2, y=y)
 
-    def draw_scrobble_list(self):
-        bar_draws = []
-        for bar in reversed(self.bars):
+    def draw_bars(self, current_ms: float, current_bars):
+        """Draw bars in the player's lane"""
+        if not current_bars:
+            return
+
+        for bar in reversed(current_bars):
             if not bar.display:
                 continue
-            x_position = self.get_position_x(tex.screen_width, self.current_ms, bar.load_ms, bar.pixels_per_frame_x)
-            y_position = self.get_position_y(self.current_ms, bar.load_ms, bar.pixels_per_frame_y, bar.pixels_per_frame_x)
-            if x_position < tex.skin_config["past_judge_circle"].x or x_position > tex.screen_width:
-                continue
-            if hasattr(bar, 'is_branch_start'):
-                frame = 1
+            x_position = self.get_position_x(bar, current_ms)
+            y_position = self.get_position_y(bar, current_ms)
+            if y_position != 0:
+                angle = math.degrees(math.atan2(bar.scroll_y, bar.scroll_x))
             else:
-                frame = 0
-            bar_draws.append((str(bar.type), frame, x_position + tex.skin_config["moji_drumroll"].x, y_position+tex.skin_config["moji_drumroll"].y))
+                angle = 0
+            tex.draw_texture('notes', str(bar.type), x=x_position+tex.skin_config["moji_drumroll"].x- (tex.textures["notes"]["1"].width//2), y=y_position+tex.skin_config["moji_drumroll"].y, rotation=angle)
 
-        for bar_type, frame, x, y in bar_draws:
-            tex.draw_texture('notes', bar_type, frame=frame, x=x, y=y)
+    def draw_notes(self, current_ms: float, current_notes_draw):
+        """Draw notes in the player's lane"""
+        if not current_notes_draw:
+            return
 
-        for note in reversed(self.scrobble_note_list):
+        for note in reversed(current_notes_draw):
             if note.type == NoteType.TAIL:
                 continue
 
+            x_position = self.get_position_x(note, current_ms)
+            y_position = self.get_position_y(note, current_ms)
             if isinstance(note, Drumroll):
-                self.draw_drumroll(self.current_ms, note, 0, note.index)
+                self.draw_drumroll(current_ms, note)
             elif isinstance(note, Balloon) and not note.is_kusudama:
-                x_position = self.get_position_x(tex.screen_width, self.current_ms, note.load_ms, note.pixels_per_frame_x)
-                y_position = self.get_position_y(self.current_ms, note.load_ms, note.pixels_per_frame_y, note.pixels_per_frame_x)
-                if x_position < tex.skin_config["past_judge_circle"].x or x_position > tex.screen_width:
-                    continue
-                self.draw_balloon(self.current_ms, note, 0, note.index)
-                tex.draw_texture('notes', 'moji', frame=note.moji, x=x_position - tex.skin_config["moji"].x, y=tex.skin_config["moji"].y + y_position)
+                self.draw_balloon(current_ms, note)
+                tex.draw_texture('notes', 'moji', frame=note.moji, x=x_position, y=tex.skin_config["moji"].y + y_position)
             else:
-                x_position = self.get_position_x(tex.screen_width, self.current_ms, note.load_ms, note.pixels_per_frame_x)
-                y_position = self.get_position_y(self.current_ms, note.load_ms, note.pixels_per_frame_y, note.pixels_per_frame_x)
-                if x_position < tex.skin_config["past_judge_circle"].x or x_position > tex.screen_width:
-                    continue
-
                 if note.display:
-                    tex.draw_texture('notes', str(note.type), x=x_position, y=y_position+tex.skin_config["notes"].y, center=True)
-                color = ray.WHITE
-                if note.index in self.player_1.input_log:
-                    if self.player_1.input_log[note.index] == 'GOOD':
-                        color = ray.Color(255, 233, 0, 255)
-                    elif self.player_1.input_log[note.index] == 'BAD':
-                        color = ray.Color(34, 189, 243, 255)
-                tex.draw_texture('notes', 'moji', frame=note.moji, x=x_position - tex.skin_config["moji"].x, y=tex.skin_config["moji"].y + y_position, color=color)
+                    tex.draw_texture('notes', str(note.type), x=x_position - (tex.textures["notes"]["1"].width//2), y=y_position+tex.skin_config["notes"].y, center=True)
+                tex.draw_texture('notes', 'moji', frame=note.moji, x=x_position - (tex.textures["notes"]["moji"].width//2), y=tex.skin_config["moji"].y + y_position)
 
     def draw(self):
+        tex.clear_screen(ray.BLACK)
         self.background.draw()
         self.player_1.draw(self.current_ms, self.start_ms, self.mask_shader)
         if self.paused:
-            self.draw_scrobble_list()
+            self.draw_bars(self.scrobble_time, self.bars)
+            self.draw_notes(self.scrobble_time, self.scrobble_note_list)
         tex.draw_texture('practice', 'large_drum', index=0)
         tex.draw_texture('practice', 'large_drum', index=1)
         self.player_1.draw_overlays(self.mask_shader)
