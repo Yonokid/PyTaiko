@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "av>=16.0.1",
+    "pypresence>=4.6.1",
     "raylib-sdl>=5.5.0.2",
     "tomlkit>=0.13.3",
 ]

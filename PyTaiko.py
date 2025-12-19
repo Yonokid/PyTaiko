@@ -21,6 +21,7 @@ from libs.song_hash import DB_VERSION
 from libs.tja import TJAParser
 from libs.utils import (
     force_dedicated_gpu,
+    get_current_ms,
     global_data,
     global_tex
 )
@@ -42,8 +43,18 @@ from scenes.two_player.song_select import TwoPlayerSongSelectScreen
 from scenes.dan.dan_select import DanSelectScreen
 from scenes.dan.dan_result import DanResultScreen
 
+from pypresence.presence import Presence
+
 
 logger = logging.getLogger(__name__)
+DISCORD_APP_ID = '1451423960401973353'
+try:
+    RPC = Presence(DISCORD_APP_ID)
+    RPC.connect()
+    discord_connected = True
+except Exception as e:
+    discord_connected = False
+    logger.warning(f"Could not connect to Discord: {e}")
 
 class Screens:
     TITLE = "TITLE"
@@ -329,9 +340,23 @@ def main():
     ray.hide_cursor()
     logger.info("Cursor hidden")
     last_fps = 1
+    start_time = get_current_ms()
     last_color = ray.BLACK
 
     while not ray.window_should_close():
+        if discord_connected:
+            if global_data.session_data[global_data.player_num].selected_song != Path():
+                details = f"Playing Song: {global_data.session_data[global_data.player_num].song_title}"
+            else:
+                details = "Idling"
+            RPC.update(
+                state=f"In Screen {current_screen}",
+                details=details,
+                large_text="PyTaiko",
+                start=get_current_ms() - start_time,
+                buttons=[{"label": "Play Now", "url": "https://github.com/Yonokid/PyTaiko"}]
+            )
+
         if ray.is_key_pressed(global_data.config["keys"]["fullscreen_key"]):
             ray.toggle_fullscreen()
             logger.info("Toggled fullscreen")
@@ -383,6 +408,8 @@ def main():
 
     ray.close_window()
     audio.close_audio_device()
+    if discord_connected:
+        RPC.close()
     logger.info("Window closed and audio device shut down")
 
 if __name__ == "__main__":

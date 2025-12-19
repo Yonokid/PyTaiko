@@ -112,11 +112,21 @@ wheels = [
 ]
 
 [[package]]
+name = "pypresence"
+version = "4.6.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f6/6b/dedacb949ee73c3fd4a11992a4e9a70fc4cd1046ed6870f9138348293ded/pypresence-4.6.1.tar.gz", hash = "sha256:05199516a3b4e182b637b3cd5415aab7ba542707664f634f35a7220c4f10334f", size = 20419, upload-time = "2025-10-17T18:53:39.484Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/0d/1c817c6769ce0b64cc0dcc20bc9d0edb4dc560e83a3b5f0d5cbda04c3d35/pypresence-4.6.1-py3-none-any.whl", hash = "sha256:33d4549fcdf4102f81935df4ba587bacb22193e0c50c541d1ab9329b21df33cd", size = 14033, upload-time = "2025-10-17T18:53:38.184Z" },
+]
+
+[[package]]
 name = "pytaiko"
 version = "1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "av" },
+    { name = "pypresence" },
     { name = "raylib-sdl" },
     { name = "tomlkit" },
 ]
@@ -129,6 +139,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "av", specifier = ">=16.0.1" },
+    { name = "pypresence", specifier = ">=4.6.1" },
     { name = "raylib-sdl", specifier = ">=5.5.0.2" },
     { name = "tomlkit", specifier = ">=0.13.3" },
 ]
