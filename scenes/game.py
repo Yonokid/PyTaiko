@@ -966,7 +966,7 @@ class Player:
                     else:
                         background.add_chibi(True, 1)
 
-            if self.combo % 100 == 0 and self.score_method == "gen3":
+            if self.combo > 0 and self.combo % 100 == 0 and self.score_method == "gen3":
                 self.score += 10000
                 self.base_score_list.append(ScoreCounterAnimation(self.player_num, 10000, self.is_2p))
 
