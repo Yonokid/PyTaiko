@@ -18,6 +18,7 @@ class GeneralConfig(TypedDict):
     log_level: int
     fake_online: bool
     practice_mode_bar_delay: int
+    score_method: str
 
 class NameplateConfig(TypedDict):
     name: str
