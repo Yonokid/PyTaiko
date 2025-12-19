@@ -58,6 +58,10 @@ class Judgments(IntEnum):
     OK = 1
     BAD = 2
 
+class ScoreMethod():
+    GEN3 = "gen3"
+    SHINUCHI = "shinuchi"
+
 class GameScreen(Screen):
     JUDGE_X = 414 * tex.screen_scale
     JUDGE_Y = 256 * tex.screen_scale
@@ -409,9 +413,9 @@ class Player:
         self.base_score = 0
         self.score_init = 0
         self.score_diff = 0
-        if self.score_method =="shinuchi":
+        if self.score_method == ScoreMethod.SHINUCHI:
             self.base_score = calculate_base_score(total_notes)
-        elif self.score_method == "gen3":
+        elif self.score_method == ScoreMethod.GEN3:
             self.score_diff = self.tja.metadata.course_data[self.difficulty].scorediff
             if self.score_diff <= 0:
                 logger.warning("Error: No scorediff specified or scorediff less than 0 | Using shinuchi scoring method instead")
@@ -880,7 +884,7 @@ class Player:
             ok_window_ms = Player.TIMING_OK
             bad_window_ms = Player.TIMING_BAD
 
-        if self.score_method == "gen3":
+        if self.score_method == ScoreMethod.GEN3:
             self.base_score = self.score_init
             if 9 < self.combo and self.combo < 30:
                 self.base_score = math.floor(self.score_init + 1 * self.score_diff)
@@ -986,7 +990,7 @@ class Player:
             self.chara.set_animation('balloon_popping')
             self.balloon_anim.update(current_time, self.curr_balloon_count, not self.is_balloon)
             if self.balloon_anim.is_finished:
-                if self.score_method == "gen3":
+                if self.score_method == ScoreMethod.GEN3:
                     self.score += 5000
                     self.base_score_list.append(ScoreCounterAnimation(self.player_num, 5000, self.is_2p))
                 self.balloon_anim = None
@@ -1264,7 +1268,10 @@ class Player:
 
     def draw_modifiers(self):
         """Shows the currently selected modifiers"""
-        modifiers_to_draw = ['mod_shinuchi']
+        modifiers_to_draw = []
+
+        if self.score_method == ScoreMethod.SHINUCHI:
+            modifiers_to_draw.append('mod_shinuchi')
 
         # Speed modifiers
         if global_data.modifiers[self.player_num].speed >= 4:

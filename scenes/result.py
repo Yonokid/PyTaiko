@@ -14,6 +14,7 @@ from libs.utils import (
     is_l_don_pressed,
     is_r_don_pressed
 )
+from scenes.game import ScoreMethod
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +219,10 @@ class ResultPlayer:
         """
         if not self.fade_in_finished:
             return
-        tex.draw_texture('score', 'score_shinuchi', index=self.is_2p)
+        if global_data.config["general"]["score_method"] == ScoreMethod.SHINUCHI:
+            tex.draw_texture('score', 'score_shinuchi', index=self.is_2p)
+        else:
+            tex.draw_texture('score', 'score', index=self.is_2p)
         if self.score != '':
             for i in range(len(str(self.score))):
                 tex.draw_texture('score', 'score_num', x=-(i*tex.skin_config["result_score_margin"].x), frame=int(str(self.score)[::-1][i]), index=self.is_2p)
