@@ -253,6 +253,9 @@ class FolderBox(BaseBox):
         super().load_text()
         self.hori_name = OutlinedText(self.text_name, tex.skin_config['song_hori_name'].font_size, ray.WHITE, outline_thickness=5)
         self.box_texture = ray.load_texture(str(self.box_texture_path)) if self.box_texture_path and self.box_texture_path.exists() else None
+        if self.box_texture is not None:
+            ray.gen_texture_mipmaps(self.box_texture)
+            ray.set_texture_filter(self.box_texture, ray.TextureFilter.TEXTURE_FILTER_TRILINEAR)
         self.tja_count_text = OutlinedText(str(self.tja_count), tex.skin_config['song_tja_count'].font_size, ray.WHITE, outline_thickness=5)
         self.text_loaded = True
 
@@ -321,7 +324,13 @@ class FolderBox(BaseBox):
             tex.draw_texture('box', 'folder_graphic', color=color, frame=self.texture_index)
             tex.draw_texture('box', 'folder_text', color=color, frame=self.texture_index)
         elif self.box_texture is not None:
-            ray.draw_texture(self.box_texture, int((x+tex.skin_config["box_texture"].x) - (self.box_texture.width//2)), int((y+tex.skin_config["box_texture"].y) - (self.box_texture.height//2)), color)
+            scaled_width = self.box_texture.width * tex.screen_scale
+            scaled_height = self.box_texture.height * tex.screen_scale
+            x = int((x + tex.skin_config["box_texture"].x) - (scaled_width // 2))
+            y = int((y + tex.skin_config["box_texture"].y) - (scaled_height // 2))
+            src = ray.Rectangle(0, 0, self.box_texture.width, self.box_texture.height)
+            dest = ray.Rectangle(x, y, scaled_width, scaled_height)
+            ray.draw_texture_pro(self.box_texture, src, dest, ray.Vector2(0, 0), 0, color)
 
 class YellowBox:
     """A song box when it is opened."""

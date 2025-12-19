@@ -425,6 +425,8 @@ def get_japanese_songs_for_version(csv_file_path, version_column):
                 path = Path(choice)
         else:
             path = Path(input(f"NOT FOUND {title}: "))
+        if path == Path():
+            continue
         hash = process_tja_file(path)
         tja_parse = TJAParser(Path(path))
         genre = Path(path).parent.parent.name
