@@ -314,6 +314,7 @@ class Player:
         self.player_num = player_num
         self.difficulty = difficulty
         self.visual_offset = global_data.config["general"]["visual_offset"]
+        self.score_method = global_data.config["general"]["score_method"]
         self.modifiers = modifiers
         self.tja = tja
 
@@ -405,7 +406,25 @@ class Player:
             for section in self.branch_m:
                 self.total_notes += len([note for note in section.play_notes if 0 < note.type < 5])
                 total_notes += section
-        self.base_score = calculate_base_score(total_notes)
+        self.base_score = 0
+        self.score_init = 0
+        self.score_diff = 0
+        if self.score_method =="shinuchi":
+            self.base_score = calculate_base_score(total_notes)
+        elif self.score_method == "gen3":
+            self.score_diff = self.tja.metadata.course_data[self.difficulty].scorediff
+            if self.score_diff <= 0:
+                logger.warning("Error: No scorediff specified or scorediff less than 0 | Using shinuchi scoring method instead")
+                self.score_diff = 0
+
+            score_init_list = self.tja.metadata.course_data[self.difficulty].scoreinit
+            if len(score_init_list) <= 0:
+                logger.warning("Error: No scoreinit specified or scoreinit less than 0 | Using shinuchi scoring method instead")
+                self.score_init = calculate_base_score(total_notes)
+                self.score_diff = 0 # in case there is a diff but not an init.
+            else:
+                self.score_init = score_init_list[0]
+            logger.debug(f"debug | score init: {self.score_init} | score diff: {self.score_diff}")
 
         #Note management
         self.timeline = notes.timeline
@@ -858,6 +877,17 @@ class Player:
             ok_window_ms = Player.TIMING_OK
             bad_window_ms = Player.TIMING_BAD
 
+        if self.score_method == "gen3":
+            self.base_score = self.score_init
+            if 9 < self.combo and self.combo < 30:
+                self.base_score = math.floor(self.score_init + 1 * self.score_diff)
+            elif 29 < self.combo and self.combo < 50:
+                self.base_score = math.floor(self.score_init + 2 * self.score_diff)
+            elif 49 < self.combo and self.combo < 100:
+                self.base_score = math.floor(self.score_init + 4 * self.score_diff)
+            elif 99 < self.combo:
+                self.base_score = math.floor(self.score_init + 8 * self.score_diff)
+
         curr_note = self.other_notes[0] if self.other_notes else None
         if self.is_drumroll:
             self.check_drumroll(drum_type, background, current_time)
@@ -936,6 +966,10 @@ class Player:
                     else:
                         background.add_chibi(True, 1)
 
+            if self.combo % 100 == 0 and self.score_method == "gen3":
+                self.score += 10000
+                self.base_score_list.append(ScoreCounterAnimation(self.player_num, 10000, self.is_2p))
+
     def drumroll_counter_manager(self, current_time: float):
         """Manages drumroll counter behavior"""
         if self.is_drumroll and self.curr_drumroll_count > 0 and self.drumroll_counter is None:
@@ -953,6 +987,9 @@ class Player:
             self.chara.set_animation('balloon_popping')
             self.balloon_anim.update(current_time, self.curr_balloon_count, not self.is_balloon)
             if self.balloon_anim.is_finished:
+                if self.score_method == "gen3":
+                    self.score += 5000
+                    self.base_score_list.append(ScoreCounterAnimation(self.player_num, 5000, self.is_2p))
                 self.balloon_anim = None
                 self.chara.set_animation('balloon_pop')
         if self.kusudama_anim is not None:
