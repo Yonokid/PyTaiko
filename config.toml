@@ -9,6 +9,7 @@ nijiiro_notes = false
 log_level = 30
 fake_online = false
 practice_mode_bar_delay = 1
+score_method = "gen3"
 
 [nameplate_1p]
 name = 'どんちゃん'
