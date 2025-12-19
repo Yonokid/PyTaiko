@@ -2,6 +2,7 @@ import math
 from collections import deque
 import logging
 from pathlib import Path
+from typing import Optional
 
 import pyray as ray
 import copy
@@ -11,7 +12,7 @@ from libs.audio import audio
 from libs.background import Background
 from libs.global_data import Modifiers, PlayerNum, global_data
 from libs.tja import Balloon, Drumroll, NoteType, TJAParser, TimelineObject, apply_modifiers
-from libs.utils import get_current_ms
+from libs.utils import get_current_ms, is_l_don_pressed, is_l_kat_pressed, is_r_don_pressed, is_r_kat_pressed
 from libs.texture import tex
 from scenes.game import DrumHitEffect, DrumType, GameScreen, JudgeCounter, LaneHitEffect, Player, Side
 
@@ -272,6 +273,21 @@ class PracticePlayer(Player):
         self.judge_counter = JudgeCounter()
         self.gauge = None
         self.paused = False
+
+    def handle_input(self, ms_from_start: float, current_time: float, background: Optional[Background]):
+        if self.paused:
+            return
+        input_checks = [
+            (is_l_don_pressed, DrumType.DON, Side.LEFT, f'hitsound_don_{self.player_num}p'),
+            (is_r_don_pressed, DrumType.DON, Side.RIGHT, f'hitsound_don_{self.player_num}p'),
+            (is_l_kat_pressed, DrumType.KAT, Side.LEFT, f'hitsound_kat_{self.player_num}p'),
+            (is_r_kat_pressed, DrumType.KAT, Side.RIGHT, f'hitsound_kat_{self.player_num}p')
+        ]
+        for check_func, drum_type, side, sound in input_checks:
+            if check_func(self.player_num):
+                self.spawn_hit_effects(drum_type, side)
+                audio.play_sound(sound, 'hitsound')
+                self.check_note(ms_from_start, drum_type, current_time, background)
 
     def spawn_hit_effects(self, drum_type: DrumType, side: Side):
         self.lane_hit_effect = LaneHitEffect(drum_type, self.is_2p)
