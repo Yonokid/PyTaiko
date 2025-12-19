@@ -8,7 +8,6 @@ from libs.audio import audio
 from libs.utils import global_data
 from libs.video import VideoPlayer
 import pyray as ray
-from libs.texture import tex
 from scenes.game import ClearAnimation, FCAnimation, FailAnimation, GameScreen, Player, Background, ResultTransition
 
 logger = logging.getLogger(__name__)
@@ -75,7 +74,7 @@ class TwoPlayerGameScreen(GameScreen):
 
     def init_tja(self, song: Path):
         """Initialize the TJA file"""
-        self.tja = TJAParser(song, start_delay=self.start_delay, distance=tex.screen_width - GameScreen.JUDGE_X)
+        self.tja = TJAParser(song, start_delay=self.start_delay)
         if self.tja.metadata.bgmovie != Path() and self.tja.metadata.bgmovie.exists():
             self.movie = VideoPlayer(self.tja.metadata.bgmovie)
             self.movie.set_volume(0.0)
