@@ -340,7 +340,6 @@ def main():
     ray.hide_cursor()
     logger.info("Cursor hidden")
     last_fps = 1
-    start_time = get_current_ms()
     last_color = ray.BLACK
 
     while not ray.window_should_close():
@@ -353,7 +352,7 @@ def main():
                 state=f"In Screen {current_screen}",
                 details=details,
                 large_text="PyTaiko",
-                start=get_current_ms() - start_time,
+                start=get_current_ms()/1000,
                 buttons=[{"label": "Play Now", "url": "https://github.com/Yonokid/PyTaiko"}]
             )
 
