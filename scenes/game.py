@@ -800,6 +800,9 @@ class Player:
                 self.combo_announce = ComboAnnounce(self.combo, current_time, self.player_num, self.is_2p)
             if self.combo > self.max_combo:
                 self.max_combo = self.combo
+            if self.combo % 100 == 0 and self.score_method == "gen3":
+                self.score += 10000
+                self.base_score_list.append(ScoreCounterAnimation(self.player_num, 10000, self.is_2p))
 
         if note.type != NoteType.KUSUDAMA:
             is_big = note.type == NoteType.DON_L or note.type == NoteType.KAT_L or note.type == NoteType.BALLOON_HEAD
@@ -965,10 +968,6 @@ class Player:
                         background.add_chibi(True, 2)
                     else:
                         background.add_chibi(True, 1)
-
-            if self.combo > 0 and self.combo % 100 == 0 and self.score_method == "gen3":
-                self.score += 10000
-                self.base_score_list.append(ScoreCounterAnimation(self.player_num, 10000, self.is_2p))
 
     def drumroll_counter_manager(self, current_time: float):
         """Manages drumroll counter behavior"""
