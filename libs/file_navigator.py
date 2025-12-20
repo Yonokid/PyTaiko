@@ -8,7 +8,7 @@ from typing import Optional, Union
 from raylib import SHADER_UNIFORM_FLOAT, SHADER_UNIFORM_VEC3
 from libs.audio import audio
 from libs.animation import Animation, MoveAnimation
-from libs.global_data import Crown, Difficulty
+from libs.global_data import Crown, Difficulty, ScoreMethod
 from libs.tja import TJAParser, test_encodings
 from libs.texture import tex
 from libs.utils import OutlinedText, get_current_ms, global_data
@@ -809,10 +809,18 @@ class ScoreHistory:
     def draw_long(self):
         tex.draw_texture('leaderboard','background_2')
         tex.draw_texture('leaderboard','title', index=self.long)
-        if self.curr_difficulty == Difficulty.URA:
-            tex.draw_texture('leaderboard', 'shinuchi_ura', index=self.long)
-        else:
-            tex.draw_texture('leaderboard', 'shinuchi', index=self.long)
+
+        match global_data.config["general"]["score_method"]:
+            case ScoreMethod.SHINUCHI:
+                if self.curr_difficulty == Difficulty.URA:
+                    tex.draw_texture('leaderboard', 'shinuchi_ura', index=self.long)
+                else:
+                    tex.draw_texture('leaderboard', 'shinuchi', index=self.long)
+            case ScoreMethod.GEN3:
+                if self.curr_difficulty == Difficulty.URA:
+                    tex.draw_texture('leaderboard', index=self.long)
+                else:
+                    tex.draw_texture('leaderboard', index=self.long)
 
         tex.draw_texture('leaderboard', 'pts', color=ray.WHITE, index=self.long)
         tex.draw_texture('leaderboard', 'difficulty', frame=self.curr_difficulty, index=self.long)
