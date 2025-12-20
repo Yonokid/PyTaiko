@@ -818,9 +818,9 @@ class ScoreHistory:
                     tex.draw_texture('leaderboard', 'shinuchi', index=self.long)
             case ScoreMethod.GEN3:
                 if self.curr_difficulty == Difficulty.URA:
-                    tex.draw_texture('leaderboard', index=self.long)
+                    tex.draw_texture('leaderboard', 'normal', index=self.long)
                 else:
-                    tex.draw_texture('leaderboard', index=self.long)
+                    tex.draw_texture('leaderboard', 'normal', index=self.long)
 
         tex.draw_texture('leaderboard', 'pts', color=ray.WHITE, index=self.long)
         tex.draw_texture('leaderboard', 'difficulty', frame=self.curr_difficulty, index=self.long)
