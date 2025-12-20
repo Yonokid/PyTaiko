@@ -1,10 +1,11 @@
 __pycache__
 .venv
 .ruff_cache
-scores.db
 cache
 dev-config.toml
 libaudio.so
 latest.log
 libaudio.dll
 libaudio.dylib
+scores_gen3.db
+scores_shinuchi.db
