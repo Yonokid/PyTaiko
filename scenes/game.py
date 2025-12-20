@@ -14,7 +14,7 @@ from libs.animation import Animation
 from libs.audio import audio
 from libs.background import Background
 from libs.chara_2d import Chara2D
-from libs.global_data import Crown, Difficulty, Modifiers, PlayerNum
+from libs.global_data import Crown, Difficulty, Modifiers, PlayerNum, ScoreMethod
 from libs.global_objects import AllNetIcon, Nameplate
 from libs.screen import Screen
 from libs.texture import tex
@@ -57,10 +57,6 @@ class Judgments(IntEnum):
     GOOD = 0
     OK = 1
     BAD = 2
-
-class ScoreMethod():
-    GEN3 = "gen3"
-    SHINUCHI = "shinuchi"
 
 class GameScreen(Screen):
     JUDGE_X = 414 * tex.screen_scale
@@ -156,7 +152,7 @@ class GameScreen(Screen):
         """Write the score to the database"""
         if global_data.modifiers[global_data.player_num].auto:
             return
-        with sqlite3.connect('scores.db') as con:
+        with sqlite3.connect(global_data.score_db) as con:
             session_data = global_data.session_data[global_data.player_num]
             cursor = con.cursor()
             hash = session_data.song_hash
@@ -804,7 +800,7 @@ class Player:
                 self.combo_announce = ComboAnnounce(self.combo, current_time, self.player_num, self.is_2p)
             if self.combo > self.max_combo:
                 self.max_combo = self.combo
-            if self.combo % 100 == 0 and self.score_method == "gen3":
+            if self.combo % 100 == 0 and self.score_method == ScoreMethod.GEN3:
                 self.score += 10000
                 self.base_score_list.append(ScoreCounterAnimation(self.player_num, 10000, self.is_2p))
 

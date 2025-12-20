@@ -27,14 +27,14 @@ class DiffHashesDecoder(json.JSONDecoder):
         super().__init__(object_hook=diff_hashes_object_hook, *args, **kwargs)
 
 def get_db_version():
-    with sqlite3.connect('scores.db') as con:
+    with sqlite3.connect(global_data.score_db) as con:
         cursor = con.cursor()
         cursor.execute('PRAGMA user_version')
         version = cursor.fetchone()[0]
         return version
 
 def update_db_version():
-    with sqlite3.connect('scores.db') as con:
+    with sqlite3.connect(global_data.score_db) as con:
         cursor = con.cursor()
         cursor.execute(f'PRAGMA user_version = {DB_VERSION}')
 

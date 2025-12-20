@@ -15,7 +15,7 @@ from raylib.defines import (
 )
 
 from libs.audio import audio
-from libs.global_data import PlayerNum
+from libs.global_data import PlayerNum, ScoreMethod
 from libs.screen import Screen
 from libs.song_hash import DB_VERSION
 from libs.tja import TJAParser
@@ -44,7 +44,6 @@ from scenes.dan.dan_select import DanSelectScreen
 from scenes.dan.dan_result import DanResultScreen
 
 from pypresence.presence import Presence
-
 
 logger = logging.getLogger(__name__)
 DISCORD_APP_ID = '1451423960401973353'
@@ -128,7 +127,7 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
 def create_song_db():
     """Create the scores database if it doesn't exist"""
-    with sqlite3.connect('scores.db') as con:
+    with sqlite3.connect(global_data.score_db) as con:
         cursor = con.cursor()
 
         cursor.execute('''
@@ -199,6 +198,11 @@ def update_camera_for_window_size(camera, virtual_width, virtual_height):
 def main():
     force_dedicated_gpu()
     global_data.config = get_config()
+    match global_data.config["general"]["score_method"]:
+        case ScoreMethod.GEN3:
+            global_data.score_db = 'scores_gen3.db'
+        case ScoreMethod.SHINUCHI:
+            global_data.score_db = 'scores_shinuchi.db'
     log_level = global_data.config["general"]["log_level"]
     if sys.platform == 'win32':
         import io
