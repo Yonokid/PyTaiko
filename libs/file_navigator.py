@@ -219,7 +219,7 @@ class SongBox(BaseBox):
         self.text_loaded = True
 
     def get_scores(self):
-        with sqlite3.connect('scores.db') as con:
+        with sqlite3.connect(global_data.score_db) as con:
             cursor = con.cursor()
             # Batch database query for all diffs at once
             if self.tja.metadata.course_data:

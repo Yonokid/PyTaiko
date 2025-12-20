@@ -14,6 +14,9 @@ class PlayerNum(IntEnum):
     TWO_PLAYER = 3
     DAN = 4
 
+class ScoreMethod():
+    GEN3 = "gen3"
+    SHINUCHI = "shinuchi"
 
 class Difficulty(IntEnum):
     EASY = 0
@@ -154,6 +157,7 @@ class GlobalData:
     config: Config = field(default_factory=dict)
     song_hashes: dict[str, list[dict]] = field(default_factory=lambda: dict()) #Hash to path
     song_paths: dict[Path, str] = field(default_factory=lambda: dict()) #path to hash
+    score_db: str = ""
     song_progress: float = 0.0
     total_songs: int = 0
     hit_sound: list[int] = field(default_factory=lambda: [0, 0, 0])
