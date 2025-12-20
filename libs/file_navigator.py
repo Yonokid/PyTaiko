@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 import random
 from typing import Optional, Union
+
+from raylib import SHADER_UNIFORM_FLOAT, SHADER_UNIFORM_VEC3
 from libs.audio import audio
 from libs.animation import Animation, MoveAnimation
 from libs.global_data import Crown, Difficulty
@@ -17,6 +19,45 @@ import pyray as ray
 BOX_CENTER = 594 * tex.screen_scale
 
 logger = logging.getLogger(__name__)
+
+def rgb_to_hue(r, g, b):
+    rf = r / 255.0
+    gf = g / 255.0
+    bf = b / 255.0
+
+    max_val = max(rf, gf, bf)
+    min_val = min(rf, gf, bf)
+    delta = max_val - min_val
+
+    if delta == 0:
+        return 0  # Gray/white, no hue
+
+    if max_val == rf:
+        hue = 60.0 * (((gf - bf) / delta) % 6)
+    elif max_val == gf:
+        hue = 60.0 * ((bf - rf) / delta + 2.0)
+    else:
+        hue = 60.0 * ((rf - gf) / delta + 4.0)
+
+    if hue < 0:
+        hue += 360.0
+
+    return hue
+
+
+def calculate_hue_shift(source_rgb, target_rgb):
+    source_hue = rgb_to_hue(*source_rgb)
+    target_hue = rgb_to_hue(*target_rgb)
+
+    shift = (target_hue - source_hue) / 360.0
+
+    # Normalize to 0.0-1.0 range
+    while shift < 0:
+        shift += 1.0
+    while shift >= 1.0:
+        shift -= 1.0
+
+    return shift
 
 class BaseBox():
     OUTLINE_MAP = {
@@ -69,6 +110,17 @@ class BaseBox():
 
     def load_text(self):
         self.name = OutlinedText(self.text_name, tex.skin_config["song_box_name"].font_size, ray.WHITE, outline_thickness=5, vertical=True)
+        '''
+        self.shader = ray.load_shader('', 'shader/colortransform.fs')
+        source_rgb = (142, 212, 30)
+        target_rgb = (209, 162, 19)
+        source_color = ray.ffi.new('float[3]', [source_rgb[0]/255.0, source_rgb[1]/255.0, source_rgb[2]/255.0])
+        target_color = ray.ffi.new('float[3]', [target_rgb[0]/255.0, target_rgb[1]/255.0, target_rgb[2]/255.0])
+        source_loc = ray.get_shader_location(self.shader, 'sourceColor')
+        target_loc = ray.get_shader_location(self.shader, 'targetColor')
+        ray.set_shader_value(self.shader, source_loc, source_color, SHADER_UNIFORM_VEC3)
+        ray.set_shader_value(self.shader, target_loc, target_color, SHADER_UNIFORM_VEC3)
+        '''
 
     def move_box(self, current_time: float):
         if self.position != self.target_position and self.move is None:
@@ -96,10 +148,12 @@ class BaseBox():
         self.open_fade.update(current_time)
 
     def _draw_closed(self, x: float, y: float, outer_fade_override: float):
+        #ray.begin_shader_mode(self.shader)
         tex.draw_texture('box', 'folder_texture_left', frame=self.texture_index, x=x, fade=outer_fade_override)
         offset = 1 * tex.screen_scale if self.texture_index == 3 or self.texture_index >= 9 and self.texture_index not in {10,11,12} else 0
         tex.draw_texture('box', 'folder_texture', frame=self.texture_index, x=x, x2=tex.skin_config["song_box_bg"].width, y=offset, fade=outer_fade_override)
         tex.draw_texture('box', 'folder_texture_right', frame=self.texture_index, x=x, fade=outer_fade_override)
+        #ray.end_shader_mode()
         if self.texture_index == BaseBox.DEFAULT_INDEX:
             tex.draw_texture('box', 'genre_overlay', x=x, y=y, fade=outer_fade_override)
         elif self.texture_index == BaseBox.DIFFICULTY_SORT_INDEX:
@@ -938,20 +992,27 @@ class DanCourse(FileSystemItem):
             self.charts: list[tuple[TJAParser, int, int, int]] = []
             for chart in data["charts"]:
                 hash = chart["hash"]
-                #chart_title = chart["title"]
-                #chart_subtitle = chart["subtitle"]
+                chart_title = chart["title"]
+                chart_subtitle = chart["subtitle"]
                 difficulty = chart["difficulty"]
                 if hash in global_data.song_hashes:
                     path = Path(global_data.song_hashes[hash][0]["file_path"])
-                    if (path.parent.parent / "box.def").exists():
-                        _, genre_index, _ = parse_box_def(path.parent.parent)
-                    else:
-                        genre_index = 9
-                    tja = TJAParser(path)
-                    self.charts.append((tja, genre_index, difficulty, tja.metadata.course_data[difficulty].level))
                 else:
-                    pass
-                    #do something with song_title, song_subtitle
+                    for key, value in global_data.song_hashes.items():
+                        for i in range(len(value)):
+                            song = value[i]
+                            if (song["title"]["en"].strip() == chart_title and
+                                song["subtitle"]["en"].strip() == chart_subtitle.removeprefix('--') and
+                                Path(song["file_path"]).exists()):
+                                hash_val = key
+                                path = Path(global_data.song_hashes[hash_val][i]["file_path"])
+                                break
+                if (path.parent.parent / "box.def").exists():
+                    _, genre_index, _ = parse_box_def(path.parent.parent)
+                else:
+                    genre_index = 9
+                tja = TJAParser(path)
+                self.charts.append((tja, genre_index, difficulty, tja.metadata.course_data[difficulty].level))
             self.exams = []
             for exam in data["exams"]:
                 self.exams.append(Exam(exam["type"], exam["value"][0], exam["value"][1], exam["range"]))
@@ -1037,7 +1098,7 @@ class FileNavigator:
 
             self._generate_objects_recursive(root_path)
 
-        if self.favorite_folder is not None:
+        if self.favorite_folder is not None and self.favorite_folder.path.exists():
             song_list = self._read_song_list(self.favorite_folder.path)
             for song_obj in song_list:
                 if str(song_obj) in self.all_song_files:
@@ -1121,16 +1182,8 @@ class FileNavigator:
             for tja_path in sorted(tja_files):
                 song_key = str(tja_path)
                 if song_key not in self.all_song_files and tja_path.name == "dan.json":
-                    valid_dan = True
-                    with open(tja_path, 'r', encoding='utf-8') as file:
-                        dan_data = json.load(file)
-                        for chart in dan_data["charts"]:
-                            hash = chart["hash"]
-                            if hash not in global_data.song_hashes:
-                                valid_dan = False
-                    if valid_dan:
-                        song_obj = DanCourse(tja_path, tja_path.name)
-                        self.all_song_files[song_key] = song_obj
+                    song_obj = DanCourse(tja_path, tja_path.name)
+                    self.all_song_files[song_key] = song_obj
                 elif song_key not in self.all_song_files and tja_path in global_data.song_paths:
                     song_obj = SongFile(tja_path, tja_path.name, texture_index)
                     song_obj.box.get_scores()

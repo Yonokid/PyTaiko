@@ -62,14 +62,23 @@ class TextureWrapper:
         self.animations: dict[int, BaseAnimation] = dict()
         self.skin_config: dict[str, SkinInfo] = dict()
         self.graphics_path = Path(get_config()['paths']['graphics_path'])
-        if (self.graphics_path / "skin_config.json").exists():
-            data = json.loads((self.graphics_path / "skin_config.json").read_text())
-            self.skin_config: dict[str, SkinInfo] = {
-                k: SkinInfo(v.get('x', 0), v.get('y', 0), v.get('font_size', 0), v.get('width', 0), v.get('height', 0)) for k, v in data.items()
-            }
+        self.parent_graphics_path = Path(get_config()['paths']['graphics_path'])
+        if not (self.graphics_path / "skin_config.json").exists():
+            raise Exception("skin is missing a skin_config.json")
+
+        data = json.loads((self.graphics_path / "skin_config.json").read_text())
+        self.skin_config: dict[str, SkinInfo] = {
+            k: SkinInfo(v.get('x', 0), v.get('y', 0), v.get('font_size', 0), v.get('width', 0), v.get('height', 0)) for k, v in data.items()
+        }
         self.screen_width = int(self.skin_config["screen"].width)
         self.screen_height = int(self.skin_config["screen"].height)
         self.screen_scale = self.screen_width / 1280
+        if "parent" in data["screen"]:
+            parent = data["screen"]["parent"]
+            self.parent_graphics_path = Path("Graphics") / parent
+            parent_data = json.loads((self.parent_graphics_path / "skin_config.json").read_text())
+            for k, v in parent_data.items():
+                self.skin_config[k] = SkinInfo(v.get('x', 0) * self.screen_scale, v.get('y', 0) * self.screen_scale, v.get('font_size', 0) * self.screen_scale, v.get('width', 0) * self.screen_scale, v.get('height', 0) * self.screen_scale)
 
     def unload_textures(self):
         """Unload all textures and animations."""
@@ -133,26 +142,62 @@ class TextureWrapper:
             tex_object.controllable = [tex_mapping.get("controllable", False)]
 
     def load_animations(self, screen_name: str):
-        """Load animations for a screen."""
+        """Load animations for a screen, falling back to parent if not found."""
         screen_path = self.graphics_path / screen_name
+        parent_screen_path = self.parent_graphics_path / screen_name
+
         if (screen_path / 'animation.json').exists():
             with open(screen_path / 'animation.json') as json_file:
                 self.animations = parse_animations(json.loads(json_file.read()))
             logger.info(f"Animations loaded for screen: {screen_name}")
+        elif self.parent_graphics_path != self.graphics_path and (parent_screen_path / 'animation.json').exists():
+            with open(parent_screen_path / 'animation.json') as json_file:
+                anim_json = json.loads(json_file.read())
+                for anim in anim_json:
+                    if "total_distance" in anim and not isinstance(anim["total_distance"], dict):
+                        anim["total_distance"] = anim["total_distance"] * self.screen_scale
+                self.animations = parse_animations(anim_json)
+            logger.info(f"Animations loaded for screen: {screen_name} (from parent)")
 
     def load_zip(self, screen_name: str, subset: str):
-        """Load textures from a zip file."""
-        zip = (self.graphics_path / screen_name / subset).with_suffix('.zip')
+        """Load textures from child zip, using parent texture.json if child doesn't have one."""
+        zip_path = (self.graphics_path / screen_name / subset).with_suffix('.zip')
+        parent_zip_path = (self.parent_graphics_path / screen_name / subset).with_suffix('.zip')
+
         if screen_name in self.textures and subset in self.textures[screen_name]:
             return
-        try:
-            with zipfile.ZipFile(zip, 'r') as zip_ref:
-                if 'texture.json' not in zip_ref.namelist():
-                    raise Exception(f"texture.json file missing from {zip}")
 
-                with zip_ref.open('texture.json') as json_file:
-                    tex_mapping_data: dict[str, dict] = json.loads(json_file.read().decode('utf-8'))
-                    self.textures[zip.stem] = dict()
+        # Child zip must exist
+        if not zip_path.exists():
+            logger.warning(f"Zip file not found: {subset} for screen {screen_name}")
+            return
+
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                # Try to get texture.json from child first, then parent
+                tex_mapping_data = None
+                texture_json_source = "child"
+
+                if 'texture.json' in zip_ref.namelist():
+                    with zip_ref.open('texture.json') as json_file:
+                        tex_mapping_data = json.loads(json_file.read().decode('utf-8'))
+                elif self.parent_graphics_path != self.graphics_path and parent_zip_path.exists():
+                    # Fall back to parent's texture.json
+                    with zipfile.ZipFile(parent_zip_path, 'r') as parent_zip_ref:
+                        if 'texture.json' in parent_zip_ref.namelist():
+                            with parent_zip_ref.open('texture.json') as json_file:
+                                tex_mapping_data = json.loads(json_file.read().decode('utf-8'))
+                                for tex_map in tex_mapping_data:
+                                    for key in tex_mapping_data[tex_map]:
+                                        if key in ["x", "y", "x2", "y2"]:
+                                            tex_mapping_data[tex_map][key] = tex_mapping_data[tex_map][key] * self.screen_scale
+                            texture_json_source = "parent"
+                        else:
+                            raise Exception(f"texture.json file missing from both {zip_path} and {parent_zip_path}")
+                else:
+                    raise Exception(f"texture.json file missing from {zip_path}")
+
+                self.textures[zip_path.stem] = dict()
 
                 encoding = sys.getfilesystemencoding()
                 for tex_name in tex_mapping_data:
@@ -166,11 +211,11 @@ class TextureWrapper:
                             extracted_path = Path(temp_dir) / tex_name
                             if extracted_path.is_dir():
                                 frames = [ray.LoadTexture(str(frame).encode(encoding)) for frame in sorted(extracted_path.iterdir(),
-                                          key=lambda x: int(x.stem)) if frame.is_file()]
+                                            key=lambda x: int(x.stem)) if frame.is_file()]
                             else:
                                 frames = [ray.LoadTexture(str(extracted_path).encode(encoding))]
-                        self.textures[zip.stem][tex_name] = Texture(tex_name, frames, tex_mapping)
-                        self._read_tex_obj_data(tex_mapping, self.textures[zip.stem][tex_name])
+                        self.textures[zip_path.stem][tex_name] = Texture(tex_name, frames, tex_mapping)
+                        self._read_tex_obj_data(tex_mapping, self.textures[zip_path.stem][tex_name])
                     elif f"{tex_name}.png" in zip_ref.namelist():
                         tex_mapping = tex_mapping_data[tex_name]
 
@@ -181,30 +226,34 @@ class TextureWrapper:
 
                         try:
                             tex = ray.LoadTexture(temp_path.encode(encoding))
-                            self.textures[zip.stem][tex_name] = Texture(tex_name, tex, tex_mapping)
-                            self._read_tex_obj_data(tex_mapping, self.textures[zip.stem][tex_name])
+                            self.textures[zip_path.stem][tex_name] = Texture(tex_name, tex, tex_mapping)
+                            self._read_tex_obj_data(tex_mapping, self.textures[zip_path.stem][tex_name])
                         finally:
                             os.unlink(temp_path)
                     else:
-                        logger.error(f"Texture {tex_name} was not found in {zip}")
-            logger.info(f"Textures loaded from zip: {zip}")
+                        logger.error(f"Texture {tex_name} was not found in {zip_path}")
+
+            json_note = f" (texture.json from {texture_json_source})" if texture_json_source == "parent" else ""
+            logger.info(f"Textures loaded from zip: {zip_path}{json_note}")
         except Exception as e:
-            logger.error(f"Failed to load textures from zip {zip}: {e}")
+            logger.error(f"Failed to load textures from zip {zip_path}: {e}")
 
     def load_screen_textures(self, screen_name: str) -> None:
         """Load textures for a screen."""
         screen_path = self.graphics_path / screen_name
+
         if not screen_path.exists():
             logger.warning(f"Textures for Screen {screen_name} do not exist")
             return
-        if (screen_path / 'animation.json').exists():
-            with open(screen_path / 'animation.json') as json_file:
-                self.animations = parse_animations(json.loads(json_file.read()))
-            logger.info(f"Animations loaded for screen: {screen_name}")
-        for zip in screen_path.iterdir():
-            if zip.is_dir() or zip.suffix != ".zip":
-                continue
-            self.load_zip(screen_name, zip.name)
+
+        # Load animations
+        self.load_animations(screen_name)
+
+        # Load zip files from child screen path only
+        for zip_file in screen_path.iterdir():
+            if zip_file.is_file() and zip_file.suffix == ".zip":
+                self.load_zip(screen_name, zip_file.stem)
+
         logger.info(f"Screen textures loaded for: {screen_name}")
 
     def control(self, tex_object: Texture, index: int = 0):
