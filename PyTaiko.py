@@ -202,7 +202,7 @@ def main():
         case ScoreMethod.GEN3:
             global_data.score_db = 'scores_gen3.db'
         case ScoreMethod.SHINUCHI:
-            global_data.score_db = 'scores_shinuchi.db'
+            global_data.score_db = 'scores.db'
     log_level = global_data.config["general"]["log_level"]
     if sys.platform == 'win32':
         import io

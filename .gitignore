@@ -7,5 +7,5 @@ libaudio.so
 latest.log
 libaudio.dll
 libaudio.dylib
-scores_gen3.db
+scores.db
 scores_shinuchi.db
