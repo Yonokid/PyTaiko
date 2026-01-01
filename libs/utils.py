@@ -1,10 +1,9 @@
-import string
 import ctypes
 import hashlib
-import sys
 import logging
+import string
+import sys
 import time
-from libs.global_data import PlayerNum, global_data
 from pathlib import Path
 from typing import Optional
 
@@ -16,6 +15,7 @@ from raylib import (
     SHADER_UNIFORM_VEC4,
 )
 
+from libs.global_data import PlayerNum, global_data
 from libs.texture import TextureWrapper
 
 logger = logging.getLogger(__name__)
@@ -57,11 +57,25 @@ def strip_comments(code: str) -> str:
         index += 1
     return result
 
+class InputState:
+    def __init__(self):
+        self.pressed_keys_this_frame = set()
+
+    def update(self):
+        """Call this once per frame to drain the key queue"""
+        self.pressed_keys_this_frame.clear()
+        key = rl.GetKeyPressed()
+        while key > 0:
+            self.pressed_keys_this_frame.add(key)
+            key = rl.GetKeyPressed()
+
+input_state = InputState()
+
 def is_input_key_pressed(keys: list[int], gamepad_buttons: list[int]):
     if global_data.input_locked:
         return False
     for key in keys:
-        if rl.IsKeyPressed(key):
+        if key in input_state.pressed_keys_this_frame:
             return True
 
     if rl.IsGamepadAvailable(0):

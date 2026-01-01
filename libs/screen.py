@@ -3,6 +3,7 @@ from typing import Any
 
 from libs.audio import audio
 from libs.texture import tex
+from libs.utils import input_state
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class Screen:
         return next_screen
 
     def update(self) -> Any:
+        input_state.update()
         ret_val = self._do_screen_start()
         if ret_val:
             return ret_val
